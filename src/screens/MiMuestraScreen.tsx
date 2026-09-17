@@ -22,7 +22,9 @@ import SignaturePad from "../SignaturePad";
 import { getAuditVisitFix } from "../useAuditorLocation";
 import { checkDeviceIntegrity } from "../deviceIntegrity";
 import { getDeviceId } from "../deviceIdentity";
-import { createOfflineVisitId, enqueueVisit, syncPendingVisits } from "../offlineSync";
+import { cacheGet, cacheSet, createOfflineVisitId, enqueueVisit, syncPendingVisits } from "../offlineSync";
+
+const CACHE_KEY_MUESTRA = "mias_v1";
 
 const RESULTADOS = [
   { value: "CONFORME", label: "Conforme", icon: "check-circle-outline" },
@@ -114,6 +116,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
       if (!mounted.current) return;
       setAsignaciones(r.data || []);
       setError("");
+      cacheSet(CACHE_KEY_MUESTRA, r.data || []);
     } catch (e: any) {
       if (mounted.current) setError(e.message);
     } finally {
@@ -121,7 +124,15 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     }
   }, [api]);
 
-  useEffect(() => { mounted.current = true; load(); return () => { mounted.current = false; }; }, [load]);
+  useEffect(() => {
+    mounted.current = true;
+    // Pinta al instante lo último que se vio (sin esperar a la red) y refresca en paralelo.
+    cacheGet<any[]>(CACHE_KEY_MUESTRA).then((cached) => {
+      if (cached && mounted.current) { setAsignaciones(cached.value); setLoading(false); }
+    });
+    load();
+    return () => { mounted.current = false; };
+  }, [load]);
   useEffect(() => { if (refreshRevision > 0) load(true); }, [refreshRevision, load]);
   useEffect(() => { onDetailVisibilityChange?.(Boolean(selected)); }, [selected, onDetailVisibilityChange]);
 
@@ -249,6 +260,20 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
         <Header title="Ficha de entrevista" subtitle={expediente.codigo_expediente} right={
           <Pressable onPress={resetForm} style={s.closeBtn}><MaterialCommunityIcons name="close" size={20} color={C.muted} /></Pressable>
         } />
+
+        <View style={s.checklist}>
+          {[
+            { label: "Cuestionario", done: entregoDinero !== null && pagoComision !== null && recibioMontoTotal !== null },
+            { label: "Foto principal", done: Boolean(photo) },
+            { label: "Firma", done: Boolean(signature) },
+          ].map((step) => (
+            <View key={step.label} style={s.checklistItem}>
+              <MaterialCommunityIcons name={step.done ? "check-circle" : "circle-outline"} size={16} color={step.done ? C.success : "#C3CCDB"} />
+              <Text style={[s.checklistText, step.done && s.checklistTextDone]}>{step.label}</Text>
+            </View>
+          ))}
+        </View>
+
         <ExpedienteInfo expediente={expediente} />
 
         <Card>
@@ -333,33 +358,70 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     );
   }
 
+  const priorityColor = (p: string) => (p === "ALTA" ? C.danger : p === "BAJA" ? C.muted : C.warning);
+  const initialsOf = (name: string) => (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
   return (
     <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[C.primary]} />}>
       <Header title="Mi muestra" subtitle={`${asignaciones.length} expediente(s) asignado(s)`} />
       {error && !asignaciones.length ? <Empty title="No pudimos cargar tu muestra" text={error} /> : null}
       {!error && !asignaciones.length ? <Empty title="Sin expedientes asignados" text="Tu supervisor aún no te ha asignado una muestra para auditar." /> : null}
-      {asignaciones.map((item) => (
-        <Pressable key={item.id_asignacion} onPress={() => setSelected(item)}>
-          <Card style={s.listCard}>
-            <View style={s.listHeader}>
-              <Text style={s.listTitle}>{item.expediente.nombres_cliente}</Text>
-              <Badge status={item.prioridad === "ALTA" ? "NO_ENCONTRADO" : "PENDIENTE"} label={item.prioridad} />
-            </View>
-            <Text style={s.listSub}>{item.expediente.codigo_expediente} · {item.expediente.tipo_credito}</Text>
-            <Text style={s.listSub}>{item.expediente.distrito || "Sin distrito"} · {item.expediente.direccion_domicilio || "Sin dirección"}</Text>
-          </Card>
-        </Pressable>
-      ))}
+      {asignaciones.map((item) => {
+        const isOtros = item.expediente.tipo_credito === "OTROS";
+        const accent = priorityColor(item.prioridad);
+        return (
+          <Pressable key={item.id_asignacion} onPress={() => setSelected(item)} style={({ pressed }) => pressed && s.listCardPressed}>
+            <Card style={StyleSheet.flatten([s.listCard, { borderLeftColor: accent, borderLeftWidth: 4 }])}>
+              <View style={s.listRow}>
+                <View style={[s.avatar, { backgroundColor: isOtros ? "#FFF3E0" : "#EAF1FF" }]}>
+                  <Text style={[s.avatarText, { color: isOtros ? C.warning : C.primary }]}>{initialsOf(item.expediente.nombres_cliente)}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={s.listHeader}>
+                    <Text style={s.listTitle} numberOfLines={1}>{item.expediente.nombres_cliente}</Text>
+                    <Badge status={item.prioridad === "ALTA" ? "NO_ENCONTRADO" : item.prioridad === "BAJA" ? "INACTIVO" : "PENDIENTE"} label={item.prioridad} />
+                  </View>
+                  <View style={s.chipRow}>
+                    <View style={[s.typeChip, { backgroundColor: isOtros ? "#FFF3E0" : "#EAF1FF" }]}>
+                      <MaterialCommunityIcons name={isOtros ? "store-outline" : "account-cash-outline"} size={12} color={isOtros ? C.warning : C.primary} />
+                      <Text style={[s.typeChipText, { color: isOtros ? C.warning : C.primary }]}>{item.expediente.tipo_credito}</Text>
+                    </View>
+                    <Text style={s.listCode}>{item.expediente.codigo_expediente}</Text>
+                  </View>
+                  <View style={s.listMetaRow}>
+                    <MaterialCommunityIcons name="map-marker-outline" size={13} color={C.muted} />
+                    <Text style={s.listSub} numberOfLines={1}>{item.expediente.distrito || "Sin distrito"} · {item.expediente.direccion_domicilio || "Sin dirección"}</Text>
+                  </View>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#C3CCDB" />
+              </View>
+            </Card>
+          </Pressable>
+        );
+      })}
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
   closeBtn: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
-  listCard: { gap: 4 },
+  checklist: { flexDirection: "row", gap: 14, paddingHorizontal: 2, marginTop: -6 },
+  checklistItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  checklistText: { fontSize: 11, fontWeight: "800", color: "#9AA5B5" },
+  checklistTextDone: { color: C.success },
+  listCard: { gap: 0, paddingVertical: 12 },
+  listCardPressed: { opacity: 0.75 },
+  listRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  avatar: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 13, fontWeight: "900" },
   listHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  listTitle: { fontSize: 15, fontWeight: "900", color: C.text, flex: 1, marginRight: 8 },
-  listSub: { fontSize: 12, color: C.muted },
+  listTitle: { fontSize: 14, fontWeight: "900", color: C.text, flex: 1, marginRight: 8 },
+  chipRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 5 },
+  typeChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
+  typeChipText: { fontSize: 9.5, fontWeight: "900", letterSpacing: 0.3 },
+  listCode: { fontSize: 11, color: C.muted, fontWeight: "700" },
+  listMetaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5 },
+  listSub: { fontSize: 11.5, color: C.muted, flexShrink: 1 },
   infoRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4, gap: 10 },
   infoLabel: { fontSize: 11, color: C.muted, fontWeight: "700" },
   infoValue: { fontSize: 12, color: C.text, fontWeight: "700", flexShrink: 1, textAlign: "right" },

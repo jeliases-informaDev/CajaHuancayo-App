@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
 import { Button, Card, Header, Screen } from "../ui";
 import { C } from "../theme";
-import { pendingVisitCount, syncPendingVisits } from "../offlineSync";
+import { lastSyncError, pendingVisitCount, syncPendingVisits } from "../offlineSync";
 
 const advisorDisplayName = (user: {
   nombres?: string;
@@ -21,8 +21,10 @@ export default function MoreScreen() {
   const displayName = advisorDisplayName(user);
   const [pending, setPending] = useState(0);
   const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const refreshPending = useCallback(() => {
     pendingVisitCount().then(setPending).catch(() => {});
+    lastSyncError().then(setSyncError).catch(() => {});
   }, []);
   useEffect(() => {
     refreshPending();
@@ -35,11 +37,13 @@ export default function MoreScreen() {
       setSyncing(true);
       const result = await syncPendingVisits(token);
       setPending(result.pending);
+      const reason = await lastSyncError();
+      setSyncError(reason);
       Alert.alert(
         result.pending ? "Sincronización pendiente" : "Todo sincronizado",
         result.pending
-          ? `${result.pending} gestión(es) siguen seguras en el dispositivo y se reintentarán automáticamente.`
-          : "No quedan gestiones ni evidencias pendientes de envío.",
+          ? (reason ? `No se pudo enviar: ${reason}` : `${result.pending} visita(s) siguen seguras en el dispositivo y se reintentarán automáticamente.`)
+          : "No quedan visitas ni evidencias pendientes de envío.",
       );
     } finally {
       setSyncing(false);
@@ -65,6 +69,12 @@ export default function MoreScreen() {
       <View style={s.row}><View style={[s.rowIcon, s.successIcon]}><MaterialCommunityIcons name="shield-check-outline" size={22} color={C.success} /></View><View style={s.rowCopy}><Text style={s.rowTitle}>Sesión protegida</Text><Text style={s.rowSub}>Tu acceso corresponde a una cuenta activa vinculada a este dispositivo.</Text></View><MaterialCommunityIcons name="check-circle" size={19} color={C.success} /></View>
       <View style={s.separator} />
       <Pressable onPress={syncNow} style={({ pressed }) => [s.row, pressed && s.pressed]}><View style={[s.rowIcon, s.syncIcon]}><MaterialCommunityIcons name={syncing ? "sync" : "sync-circle"} size={22} color={C.primary} /></View><View style={s.rowCopy}><Text style={s.rowTitle}>Sincronización operativa</Text><Text style={s.rowSub}>{pending ? `${pending} visita(s) guardadas localmente. Toca para reintentar.` : "Las visitas y evidencias están sincronizadas con el backoffice."}</Text></View><View style={[s.online, pending > 0 && s.pending]}><View style={[s.onlineDot, pending > 0 && s.pendingDot]} /><Text style={[s.onlineText, pending > 0 && s.pendingText]}>{pending ? `${pending} pendiente${pending === 1 ? "" : "s"}` : "Activa"}</Text></View></Pressable>
+      {pending && syncError ? (
+        <View style={s.syncErrorBox}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={14} color={C.danger} />
+          <Text style={s.syncErrorText} numberOfLines={2}>{syncError}</Text>
+        </View>
+      ) : null}
     </Card>
     <Card>
       <Text style={s.sectionLabel}>AJUSTES Y AYUDA</Text>
@@ -82,4 +92,5 @@ const s = StyleSheet.create({
   roleBadge: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#173A7A", borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, marginTop: 10 }, roleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.success }, role: { fontSize: 9, fontWeight: "900", color: "#DCE6FF", letterSpacing: 1 },
   sectionLabel: { fontSize: 9, color: C.muted, fontWeight: "900", letterSpacing: 1, marginBottom: 7 }, row: { flexDirection: "row", gap: 12, alignItems: "center", paddingVertical: 10 }, rowIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" }, successIcon: { backgroundColor: "#E5F8F2" }, syncIcon: { backgroundColor: "#E8EEFF" }, settingsIcon: { backgroundColor: "#EAF2FF" }, helpIcon: { backgroundColor: "#FFF5DB" },
   rowCopy: { flex: 1 }, rowTitle: { fontSize: 14, fontWeight: "900", color: C.text }, rowSub: { fontSize: 10.5, lineHeight: 15, color: C.muted, marginTop: 3 }, separator: { height: 1, backgroundColor: C.border }, online: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#E5F8F2", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 12 }, onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.success }, onlineText: { color: C.success, fontSize: 9, fontWeight: "900" }, pending: { backgroundColor: "#FFF2D7" }, pendingDot: { backgroundColor: C.warning }, pendingText: { color: "#9A6300" }, pressed: { opacity: 0.62 }, version: { textAlign: "center", fontSize: 10, color: C.muted },
+  syncErrorBox: { flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: "#FFF1F2", borderRadius: 10, padding: 9, marginTop: 2 }, syncErrorText: { flex: 1, fontSize: 10.5, lineHeight: 14, color: C.danger, fontWeight: "700" },
 });

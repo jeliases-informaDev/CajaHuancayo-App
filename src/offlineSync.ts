@@ -70,11 +70,47 @@ async function database() {
           updated_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS pending_visits_created_idx ON pending_visits(created_at);
+        CREATE TABLE IF NOT EXISTS offline_cache (
+          cache_key TEXT PRIMARY KEY NOT NULL,
+          cache_value TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
       `);
       return db;
     });
   }
   return databasePromise;
+}
+
+// Caché de solo-lectura para pantallas de datos (muestra asignada, resumen del
+// dashboard): evita mostrar una pantalla en blanco cada vez que se cambia de
+// pestaña. La pantalla pinta el último dato guardado al instante y, en
+// paralelo, pide datos frescos al servidor y actualiza la caché.
+export async function cacheGet<T = any>(key: string): Promise<{ value: T; updatedAt: number } | null> {
+  try {
+    const db = await database();
+    const row = await db.getFirstAsync<{ cache_value: string; updated_at: number }>(
+      "SELECT cache_value, updated_at FROM offline_cache WHERE cache_key = ?", key,
+    );
+    if (!row) return null;
+    return { value: JSON.parse(row.cache_value) as T, updatedAt: row.updated_at };
+  } catch {
+    return null;
+  }
+}
+
+export async function cacheSet(key: string, value: unknown) {
+  try {
+    const db = await database();
+    await db.runAsync(
+      `INSERT INTO offline_cache(cache_key, cache_value, updated_at) VALUES(?, ?, ?)
+       ON CONFLICT(cache_key) DO UPDATE SET cache_value = excluded.cache_value, updated_at = excluded.updated_at`,
+      key, JSON.stringify(value), Date.now(),
+    );
+  } catch {
+    // La pantalla ya tiene el dato en memoria; que falle el guardado en caché
+    // nunca debe interrumpir la navegación.
+  }
 }
 
 async function requestJson(path: string, options: RequestInit, token: string, deviceId: string) {
@@ -255,6 +291,17 @@ export async function pendingVisitCount() {
   const db = await database();
   const row = await db.getFirstAsync<{ total: number }>("SELECT COUNT(*) AS total FROM pending_visits");
   return Number(row?.total || 0);
+}
+
+// Motivo del último intento fallido (si lo hay), para mostrarlo en pantalla
+// en vez de un mensaje genérico — ayuda a distinguir "sin señal" de un
+// rechazo real del servidor (p. ej. Fake GPS, geocerca, foto reusada).
+export async function lastSyncError(): Promise<string | null> {
+  const db = await database();
+  const row = await db.getFirstAsync<{ last_error: string | null }>(
+    "SELECT last_error FROM pending_visits WHERE last_error IS NOT NULL ORDER BY updated_at DESC LIMIT 1",
+  );
+  return row?.last_error || null;
 }
 
 export async function registerOfflineSyncTask() {
