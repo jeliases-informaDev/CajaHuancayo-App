@@ -3,11 +3,11 @@
   "build": {
     "preview": {
       "distribution": "internal",
-      "env": { "EXPO_PUBLIC_API_URL": "http://192.168.1.11:4100" },
+      "env": { "EXPO_PUBLIC_API_URL": "https://caja-huancayo-backend.onrender.com" },
       "android": { "buildType": "apk" }
     },
     "production": {
-      "env": { "EXPO_PUBLIC_API_URL": "http://192.168.1.11:4100" },
+      "env": { "EXPO_PUBLIC_API_URL": "https://caja-huancayo-backend.onrender.com" },
       "android": { "buildType": "app-bundle" }
     }
   }
