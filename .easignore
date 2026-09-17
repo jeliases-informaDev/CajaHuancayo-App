@@ -1,0 +1,30 @@
+# Dependencias y salidas generadas
+node_modules/
+.expo/
+dist/
+dist-*/
+web-build/
+
+# Variables y secretos locales
+.env
+.env.*
+!.env.example
+
+# Archivos nativos y credenciales
+android/
+ios/
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Cachés y registros
+*.log
+*.tsbuildinfo
+.DS_Store
+.claude/
+CLAUDE.md
+AGENTS.md

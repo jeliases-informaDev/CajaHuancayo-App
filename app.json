@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "Auditoria Caja Huancayo",
+    "slug": "caja-huancayo-auditoria",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F4F7FD",
+    "androidStatusBar": {
+      "barStyle": "dark-content",
+      "backgroundColor": "#F4F7FD",
+      "translucent": false,
+      "hidden": false
+    },
+    "scheme": "chauditoria",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "pe.informaperu.chauditoria"
+    },
+    "android": {
+      "package": "pe.informaperu.chauditoria",
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Esta app usa tu ubicación para registrar y verificar las visitas de auditoría en campo."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Esta app usa la cámara para registrar evidencia de la visita de auditoría.",
+          "photosPermission": "Esta app accede a imágenes únicamente para adjuntar evidencia de la visita."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Esta app usa la cámara para registrar las evidencias obligatorias de cada visita."
+        }
+      ],
+      "expo-font",
+      "expo-sqlite",
+      "expo-background-task"
+    ],
+    "owner": "jeliasesinformaperu",
+    "extra": {
+      "eas": {
+        "projectId": "d414d0d7-b8ee-445e-bec8-64e23c6f278e"
+      }
+    }
+  }
+}
