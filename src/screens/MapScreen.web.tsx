@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useAuth } from "../AuthContext";
@@ -120,6 +120,13 @@ export default function MapScreenWeb({ currentLocation }: { refreshRevision?: nu
               <Popup>Mi ubicación</Popup>
             </Marker>
           ) : null}
+          {currentLocation ? points.map((p) => (
+            <Polyline
+              key={`line-${p.id}`}
+              positions={[[currentLocation.latitude, currentLocation.longitude], [p.latitud, p.longitud]]}
+              pathOptions={{ color: colors[p.tipo] || "#334155", weight: 2.5, opacity: 0.55, dashArray: "6 8" }}
+            />
+          )) : null}
           {points.map((p) => (
             <Marker key={p.id} position={[p.latitud, p.longitud]} icon={clientIcon(p.tipo)}>
               <Popup>
