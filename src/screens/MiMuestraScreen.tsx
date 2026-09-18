@@ -74,7 +74,7 @@ function ExpedienteInfo({ expediente }: { expediente: any }) {
   );
 }
 
-export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilityChange }: { refreshRevision?: number; onDetailVisibilityChange?: (open: boolean) => void }) {
+export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilityChange, currentLocation }: { refreshRevision?: number; onDetailVisibilityChange?: (open: boolean) => void; currentLocation?: { latitude: number; longitude: number } | null }) {
   const { api } = useAuth();
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -415,6 +415,10 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
 
   const priorityColor = (p: string) => (p === "ALTA" ? C.danger : p === "BAJA" ? C.muted : C.warning);
   const initialsOf = (name: string) => (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const comoLlegar = (lat: number, lng: number) => {
+    const origin = currentLocation ? `&origin=${currentLocation.latitude},${currentLocation.longitude}` : "";
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}${origin}`);
+  };
 
   return (
     <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[C.primary]} />}>
@@ -450,6 +454,15 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={20} color="#C3CCDB" />
               </View>
+              {Number.isFinite(Number(item.expediente.latitud)) && Number.isFinite(Number(item.expediente.longitud)) ? (
+                <Pressable
+                  onPress={(e) => { e.stopPropagation(); comoLlegar(Number(item.expediente.latitud), Number(item.expediente.longitud)); }}
+                  style={({ pressed }) => [s.gotoRow, pressed && s.pressed]}
+                >
+                  <MaterialCommunityIcons name="directions" size={15} color={C.primary} />
+                  <Text style={s.gotoText}>Cómo llegar</Text>
+                </Pressable>
+              ) : null}
             </Card>
           </Pressable>
         );
@@ -468,6 +481,9 @@ const s = StyleSheet.create({
   backRowText: { fontSize: 13, fontWeight: "800", color: C.primary },
   listCard: { gap: 0, paddingVertical: 12 },
   listCardPressed: { opacity: 0.75 },
+  gotoRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border, alignSelf: "flex-start" },
+  gotoText: { fontSize: 12, fontWeight: "800", color: C.primary },
+  pressed: { opacity: 0.6 },
   listRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   avatar: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 13, fontWeight: "900" },
