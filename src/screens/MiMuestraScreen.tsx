@@ -104,6 +104,9 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   const [signatureKey, setSignatureKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error2, setError2] = useState("");
+  // La ficha (cuestionario/comentarios) no debe interrumpirse pidiendo la foto: se
+  // llena completa primero, y recién después aparece el paso de evidencias.
+  const [paso, setPaso] = useState<"ficha" | "evidencia">("ficha");
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
@@ -145,6 +148,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     setDondePaga(""); setComentarioNegocio(""); setComentarioAuditor("");
     setPhoto(""); setPhoto2(""); setSignature(""); setSignatureKey((k) => k + 1);
     setError2("");
+    setPaso("ficha");
   };
 
   const takePhoto = async (slot: 1 | 2) => {
@@ -185,16 +189,31 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     }
   };
 
-  const validarFicha = (): string | null => {
+  // Solo lo que se llena en el paso "Ficha" (cuestionario + comentarios). No incluye
+  // foto ni firma: esas se piden recién en el paso "Evidencias".
+  const validarPasoFicha = (): string | null => {
     if (entregoDinero === null || pagoComision === null || recibioMontoTotal === null) {
       return "Responde las 3 preguntas obligatorias del cuestionario de fraude.";
     }
-    if (!photo) return "Toma la fotografía principal de evidencia.";
-    if (!signature) return "Solicita la firma del cliente antes de guardar.";
     if (resultado !== "CONFORME" && comentarioAuditor.trim().length < 10) {
       return "Este resultado requiere un comentario del auditor de al menos 10 caracteres.";
     }
     return null;
+  };
+
+  const validarFicha = (): string | null => {
+    const problemaFicha = validarPasoFicha();
+    if (problemaFicha) return problemaFicha;
+    if (!photo) return "Toma la fotografía principal de evidencia.";
+    if (!signature) return "Solicita la firma del cliente antes de guardar.";
+    return null;
+  };
+
+  const continuarAEvidencias = () => {
+    setError2("");
+    const problema = validarPasoFicha();
+    if (problema) { setError2(problema); return; }
+    setPaso("evidencia");
   };
 
   // Antes de enviar, se pide una confirmación explícita: una vez enviada la ficha
@@ -298,69 +317,83 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
 
         <ExpedienteInfo expediente={expediente} />
 
-        <Card>
-          <SectionTitle title="Resultado de la visita" />
-          <View style={s.resultGrid}>
-            {RESULTADOS.map((item) => (
-              <Pressable key={item.value} onPress={() => setResultado(item.value)} style={[s.resultChip, resultado === item.value && s.resultChipOn]}>
-                <MaterialCommunityIcons name={item.icon as any} size={16} color={resultado === item.value ? "#fff" : C.muted} />
-                <Text style={[s.resultChipText, resultado === item.value && s.resultChipTextOn]}>{item.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </Card>
+        {paso === "ficha" ? (
+          <>
+            <Card>
+              <SectionTitle title="Resultado de la visita" />
+              <View style={s.resultGrid}>
+                {RESULTADOS.map((item) => (
+                  <Pressable key={item.value} onPress={() => setResultado(item.value)} style={[s.resultChip, resultado === item.value && s.resultChipOn]}>
+                    <MaterialCommunityIcons name={item.icon as any} size={16} color={resultado === item.value ? "#fff" : C.muted} />
+                    <Text style={[s.resultChipText, resultado === item.value && s.resultChipTextOn]}>{item.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </Card>
 
-        <Card>
-          <SectionTitle title="Cuestionario al cliente" />
-          <Text style={s.qHint}>Las 3 primeras preguntas son obligatorias (verificación anti-fraude).</Text>
-          <YesNoRow label="¿Alguna vez entregó dinero al asesor por alguna razón?" value={entregoDinero} onChange={setEntregoDinero} />
-          <YesNoRow label="¿Pagó alguna comisión adicional por el desembolso?" value={pagoComision} onChange={setPagoComision} />
-          <YesNoRow label="¿Recibió el total del monto solicitado?" value={recibioMontoTotal} onChange={setRecibioMontoTotal} />
-          <YesNoRow label="¿Cónyuge tiene conocimiento del préstamo?" value={conyugeConoce} onChange={setConyugeConoce} />
-          <YesNoRow label="¿Tiene créditos paralelos?" value={creditosParalelos} onChange={setCreditosParalelos} />
-          <YesNoRow label="¿Comparte el dinero del crédito con otra persona?" value={comparteDinero} onChange={setComparteDinero} />
-          <YesNoRow label="¿Titular administra el negocio?" value={titularAdministra} onChange={setTitularAdministra} />
-          <YesNoRow label="¿Tiene microseguro?" value={tieneMicroseguro} onChange={setTieneMicroseguro} />
-          <View style={s.field}>
-            <Text style={s.qLabel}>¿Dónde realiza sus pagos?</Text>
-            <TextInput style={s.textInput} value={dondePaga} onChangeText={setDondePaga} placeholder="Agencia, agente, app, etc." />
-          </View>
-        </Card>
+            <Card>
+              <SectionTitle title="Cuestionario al cliente" />
+              <Text style={s.qHint}>Las 3 primeras preguntas son obligatorias (verificación anti-fraude).</Text>
+              <YesNoRow label="¿Alguna vez entregó dinero al asesor por alguna razón?" value={entregoDinero} onChange={setEntregoDinero} />
+              <YesNoRow label="¿Pagó alguna comisión adicional por el desembolso?" value={pagoComision} onChange={setPagoComision} />
+              <YesNoRow label="¿Recibió el total del monto solicitado?" value={recibioMontoTotal} onChange={setRecibioMontoTotal} />
+              <YesNoRow label="¿Cónyuge tiene conocimiento del préstamo?" value={conyugeConoce} onChange={setConyugeConoce} />
+              <YesNoRow label="¿Tiene créditos paralelos?" value={creditosParalelos} onChange={setCreditosParalelos} />
+              <YesNoRow label="¿Comparte el dinero del crédito con otra persona?" value={comparteDinero} onChange={setComparteDinero} />
+              <YesNoRow label="¿Titular administra el negocio?" value={titularAdministra} onChange={setTitularAdministra} />
+              <YesNoRow label="¿Tiene microseguro?" value={tieneMicroseguro} onChange={setTieneMicroseguro} />
+              <View style={s.field}>
+                <Text style={s.qLabel}>¿Dónde realiza sus pagos?</Text>
+                <TextInput style={s.textInput} value={dondePaga} onChangeText={setDondePaga} placeholder="Agencia, agente, app, etc." />
+              </View>
+            </Card>
 
-        <Card>
-          <SectionTitle title="Comentarios" />
-          <View style={s.field}>
-            <Text style={s.qLabel}>Comentario general del negocio</Text>
-            <TextInput style={[s.textInput, s.textArea]} value={comentarioNegocio} onChangeText={setComentarioNegocio} multiline placeholder="Situación observada del negocio" />
-          </View>
-          <View style={s.field}>
-            <Text style={s.qLabel}>Comentarios finales del auditor</Text>
-            <TextInput style={[s.textInput, s.textArea]} value={comentarioAuditor} onChangeText={setComentarioAuditor} multiline placeholder="Observaciones, incidencias encontradas en la visita" />
-          </View>
-        </Card>
+            <Card>
+              <SectionTitle title="Comentarios" />
+              <View style={s.field}>
+                <Text style={s.qLabel}>Comentario general del negocio</Text>
+                <TextInput style={[s.textInput, s.textArea]} value={comentarioNegocio} onChangeText={setComentarioNegocio} multiline placeholder="Situación observada del negocio" />
+              </View>
+              <View style={s.field}>
+                <Text style={s.qLabel}>Comentarios finales del auditor</Text>
+                <TextInput style={[s.textInput, s.textArea]} value={comentarioAuditor} onChangeText={setComentarioAuditor} multiline placeholder="Observaciones, incidencias encontradas en la visita" />
+              </View>
+            </Card>
 
-        <Card>
-          <SectionTitle title="Evidencia fotográfica" />
-          <View style={s.photoRow}>
-            <Pressable onPress={() => takePhoto(1)} style={s.photoBox}>
-              {photo ? <MaterialCommunityIcons name="check-circle" size={28} color={C.success} /> : <MaterialCommunityIcons name="camera-plus-outline" size={28} color={C.muted} />}
-              <Text style={s.photoLabel}>{photo ? "Foto principal ✓" : "Foto principal"}</Text>
+            {error2 ? <Text style={s.error}>{error2}</Text> : null}
+            <Button title="Ficha lista — continuar a evidencias" icon="arrow-right-circle-outline" onPress={continuarAEvidencias} />
+          </>
+        ) : (
+          <>
+            <Pressable onPress={() => setPaso("ficha")} style={s.backRow}>
+              <MaterialCommunityIcons name="chevron-left" size={20} color={C.primary} />
+              <Text style={s.backRowText}>Volver a la ficha</Text>
             </Pressable>
-            <Pressable onPress={() => takePhoto(2)} style={s.photoBox}>
-              {photo2 ? <MaterialCommunityIcons name="check-circle" size={28} color={C.success} /> : <MaterialCommunityIcons name="camera-plus-outline" size={28} color={C.muted} />}
-              <Text style={s.photoLabel}>{photo2 ? "Foto adicional ✓" : "Foto adicional (opcional)"}</Text>
-            </Pressable>
-          </View>
-          <Text style={s.qHint}>Solo se aceptan fotos tomadas en el momento desde la cámara de la app.</Text>
-        </Card>
 
-        <Card>
-          <SectionTitle title="Firma del cliente" />
-          <SignaturePad key={signatureKey} onChange={setSignature} />
-        </Card>
+            <Card>
+              <SectionTitle title="Evidencia fotográfica" />
+              <View style={s.photoRow}>
+                <Pressable onPress={() => takePhoto(1)} style={s.photoBox}>
+                  {photo ? <MaterialCommunityIcons name="check-circle" size={28} color={C.success} /> : <MaterialCommunityIcons name="camera-plus-outline" size={28} color={C.muted} />}
+                  <Text style={s.photoLabel}>{photo ? "Foto principal ✓" : "Foto principal"}</Text>
+                </Pressable>
+                <Pressable onPress={() => takePhoto(2)} style={s.photoBox}>
+                  {photo2 ? <MaterialCommunityIcons name="check-circle" size={28} color={C.success} /> : <MaterialCommunityIcons name="camera-plus-outline" size={28} color={C.muted} />}
+                  <Text style={s.photoLabel}>{photo2 ? "Foto adicional ✓" : "Foto adicional (opcional)"}</Text>
+                </Pressable>
+              </View>
+              <Text style={s.qHint}>Solo se aceptan fotos tomadas en el momento desde la cámara de la app.</Text>
+            </Card>
 
-        {error2 ? <Text style={s.error}>{error2}</Text> : null}
-        <Button title={saving ? "Guardando…" : "Revisar y enviar visita"} icon="content-save-check-outline" onPress={confirmarEnvio} disabled={saving} />
+            <Card>
+              <SectionTitle title="Firma del cliente" />
+              <SignaturePad key={signatureKey} onChange={setSignature} />
+            </Card>
+
+            {error2 ? <Text style={s.error}>{error2}</Text> : null}
+            <Button title={saving ? "Guardando…" : "Revisar y enviar visita"} icon="content-save-check-outline" onPress={confirmarEnvio} disabled={saving} />
+          </>
+        )}
 
         <Modal visible={cameraSlot !== null} animationType="slide">
           <View style={StyleSheet.absoluteFill}>
@@ -431,6 +464,8 @@ const s = StyleSheet.create({
   checklistItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   checklistText: { fontSize: 11, fontWeight: "800", color: "#9AA5B5" },
   checklistTextDone: { color: C.success },
+  backRow: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 6, alignSelf: "flex-start" },
+  backRowText: { fontSize: 13, fontWeight: "800", color: C.primary },
   listCard: { gap: 0, paddingVertical: 12 },
   listCardPressed: { opacity: 0.75 },
   listRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
