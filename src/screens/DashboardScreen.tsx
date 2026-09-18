@@ -29,11 +29,15 @@ export default function DashboardScreen({ refreshRevision = 0 }: { refreshRevisi
   const load = useCallback(async (background = false) => {
     const current = ++requestId.current;
     if (background) setRefreshing(true);
+    // El conteo de pendientes es local (SQLite) y no debe poder bloquear la carga de
+    // los datos del servidor si tarda, falla o (en web) nunca resuelve.
+    pendingVisitCount()
+      .then((n) => { if (mounted.current && current === requestId.current) setPendientesSync(n); })
+      .catch(() => {});
     try {
-      const [r, pending]: [any, number] = await Promise.all([api("/api/asignaciones/mias"), pendingVisitCount()]);
+      const r: any = await api("/api/asignaciones/mias");
       if (!mounted.current || current !== requestId.current) return;
       setAsignaciones(r.data || []);
-      setPendientesSync(pending);
       setError("");
       cacheSet(CACHE_KEY_MUESTRA, r.data || []);
     } catch (e: any) {
