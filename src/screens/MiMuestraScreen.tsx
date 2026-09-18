@@ -185,17 +185,39 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     }
   };
 
+  const validarFicha = (): string | null => {
+    if (entregoDinero === null || pagoComision === null || recibioMontoTotal === null) {
+      return "Responde las 3 preguntas obligatorias del cuestionario de fraude.";
+    }
+    if (!photo) return "Toma la fotografía principal de evidencia.";
+    if (!signature) return "Solicita la firma del cliente antes de guardar.";
+    if (resultado !== "CONFORME" && comentarioAuditor.trim().length < 10) {
+      return "Este resultado requiere un comentario del auditor de al menos 10 caracteres.";
+    }
+    return null;
+  };
+
+  // Antes de enviar, se pide una confirmación explícita: una vez enviada la ficha
+  // queda cerrada (no editable), así que es la última oportunidad de revisar.
+  const confirmarEnvio = () => {
+    setError2("");
+    const problema = validarFicha();
+    if (problema) { setError2(problema); return; }
+    Alert.alert(
+      "Revisa antes de enviar",
+      `Resultado registrado: ${resultado}.\nCuestionario, foto principal y firma del cliente: completos.\n\nUna vez enviada, la ficha queda cerrada y no se puede editar. ¿Confirmas que toda la información es correcta?`,
+      [
+        { text: "Revisar de nuevo", style: "cancel" },
+        { text: "Confirmar y enviar", onPress: () => save() },
+      ],
+    );
+  };
+
   const save = async () => {
     try {
       setError2("");
-      if (entregoDinero === null || pagoComision === null || recibioMontoTotal === null) {
-        throw new Error("Responde las 3 preguntas obligatorias del cuestionario de fraude.");
-      }
-      if (!photo) throw new Error("Toma la fotografía principal de evidencia.");
-      if (!signature) throw new Error("Solicita la firma del cliente antes de guardar.");
-      if (resultado !== "CONFORME" && comentarioAuditor.trim().length < 10) {
-        throw new Error("Este resultado requiere un comentario del auditor de al menos 10 caracteres.");
-      }
+      const problema = validarFicha();
+      if (problema) throw new Error(problema);
       setSaving(true);
       const fix = await getAuditVisitFix();
       const integrity = checkDeviceIntegrity();
@@ -338,7 +360,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
         </Card>
 
         {error2 ? <Text style={s.error}>{error2}</Text> : null}
-        <Button title={saving ? "Guardando…" : "Guardar visita"} icon="content-save-check-outline" onPress={save} disabled={saving} />
+        <Button title={saving ? "Guardando…" : "Revisar y enviar visita"} icon="content-save-check-outline" onPress={confirmarEnvio} disabled={saving} />
 
         <Modal visible={cameraSlot !== null} animationType="slide">
           <View style={StyleSheet.absoluteFill}>
