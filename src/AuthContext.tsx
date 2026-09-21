@@ -19,7 +19,11 @@ const Context = createContext<AuthValue | null>(null);
 const TOKEN_KEY = "ch_token";
 const OFFLINE_SESSION_KEY = "ch_offline_session_v1";
 const OFFLINE_SESSION_MS = 8 * 60 * 60 * 1000;
-const FIELD_ROLES = ["SUPERVISOR", "AUDITOR"];
+// Único rol que usa este aplicativo: el Auditor de Campo. El Auditor de Oficina
+// (SUPERVISOR) opera 100% desde el backoffice web — el backend ya se lo impide en
+// el login y en cada solicitud posterior; esta lista solo espeja esa misma regla
+// del lado del cliente, para no dejar una puerta client-side desalineada.
+const FIELD_ROLES = ["AUDITOR"];
 const NATIVE_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
 };

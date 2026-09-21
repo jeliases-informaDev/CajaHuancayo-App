@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { RefreshControl, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
@@ -17,6 +17,10 @@ const STAT_TILES: { key: string; label: string; icon: string; tint: string }[] =
 ];
 
 export default function DashboardScreen({ refreshRevision = 0 }: { refreshRevision?: number }) {
+  const { width } = useWindowDimensions();
+  // En teléfono se ven 2 columnas; en tablet/mobile-web con más ancho, 4 en una fila
+  // en vez de dejar la mitad de la pantalla vacía.
+  const kpiWidth = width >= 700 ? "23.5%" : "48%";
   const { api, user } = useAuth();
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
   const [pendientesSync, setPendientesSync] = useState(0);
@@ -85,7 +89,7 @@ export default function DashboardScreen({ refreshRevision = 0 }: { refreshRevisi
         <>
           <View style={s.grid}>
             {STAT_TILES.map((tile) => (
-              <Card key={tile.key} style={s.kpi}>
+              <Card key={tile.key} style={[s.kpi, { width: kpiWidth }]}>
                 <View style={[s.kpiIcon, { backgroundColor: `${tile.tint}18` }]}>
                   <MaterialCommunityIcons name={tile.icon as any} size={20} color={tile.tint} />
                 </View>

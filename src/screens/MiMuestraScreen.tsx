@@ -472,7 +472,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
 }
 
 const s = StyleSheet.create({
-  closeBtn: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
+  closeBtn: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
   checklist: { flexDirection: "row", gap: 14, paddingHorizontal: 2, marginTop: -6 },
   checklistItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   checklistText: { fontSize: 11, fontWeight: "800", color: "#9AA5B5" },
@@ -506,8 +506,8 @@ const s = StyleSheet.create({
   qHint: { fontSize: 11, color: C.muted, marginBottom: 4 },
   qRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, gap: 10, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   qLabel: { fontSize: 12, color: C.text, flex: 1, fontWeight: "600" },
-  qButtons: { flexDirection: "row", gap: 6 },
-  qBtn: { width: 44, height: 34, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  qButtons: { flexDirection: "row", gap: 8 },
+  qBtn: { width: 50, height: 42, borderRadius: 11, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
   qBtnYesOn: { backgroundColor: C.success, borderColor: C.success },
   qBtnNoOn: { backgroundColor: C.danger, borderColor: C.danger },
   qBtnText: { fontSize: 11, fontWeight: "900", color: C.muted },

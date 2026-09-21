@@ -96,18 +96,20 @@ export default function LoginScreen() {
                   <Text style={s.company}>CAJA HUANCAYO</Text>
                 </View>
               </View>
-              <View>
-                <Text style={s.brandTitle}>
-                  Verificación en campo{"\n"}con trazabilidad total.
-                </Text>
-                <Text style={s.brandText}>
-                  Muestra asignada, ficha de entrevista y evidencia desde un solo lugar.
-                </Text>
-              </View>
-              <View style={s.orb} />
+              {wide ? (
+                <View style={s.brandCopy}>
+                  <Text style={s.brandTitle}>
+                    Verificación en campo{"\n"}con trazabilidad total.
+                  </Text>
+                  <Text style={s.brandText}>
+                    Muestra asignada, ficha de entrevista y evidencia desde un solo lugar.
+                  </Text>
+                </View>
+              ) : null}
+              {wide ? <View style={s.orb} /> : null}
             </LinearGradient>
             <View style={[s.form, wide && s.formWide]}>
-              <View style={s.formAccent} />
+              <View style={[s.formAccent, wide && s.formAccentHidden]} />
               <View style={s.secure}>
                 <MaterialCommunityIcons
                   name="shield-check-outline"
@@ -228,7 +230,13 @@ const s = StyleSheet.create({
     paddingBottom: 0,
     backgroundColor: "#FFFFFF",
   },
-  scrollWide: { paddingHorizontal: 0, paddingVertical: 0 },
+  scrollWide: {
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   root: {
     flex: 1,
     width: "100%",
@@ -237,7 +245,20 @@ const s = StyleSheet.create({
     justifyContent: "flex-start",
     paddingVertical: 0,
   },
-  rootWide: { maxWidth: 760 },
+  rootWide: {
+    maxWidth: 980,
+    flexDirection: "row",
+    alignItems: "stretch",
+    flex: 0,
+    borderRadius: 28,
+    overflow: "hidden",
+    backgroundColor: "#fff",
+    shadowColor: C.navy,
+    shadowOpacity: 0.22,
+    shadowRadius: 44,
+    shadowOffset: { width: 0, height: 24 },
+    elevation: 12,
+  },
   brand: {
     borderRadius: 0,
     borderBottomLeftRadius: 0,
@@ -251,7 +272,13 @@ const s = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
-  brandWide: { minHeight: 142, paddingHorizontal: 34, paddingVertical: 22 },
+  brandWide: {
+    flex: 1,
+    minHeight: 500,
+    justifyContent: "space-between",
+    paddingHorizontal: 40,
+    paddingVertical: 40,
+  },
   brandTop: { flexDirection: "row", alignItems: "center", gap: 12, zIndex: 1 },
   logoBox: {
     width: 54,
@@ -270,26 +297,24 @@ const s = StyleSheet.create({
     letterSpacing: 1.6,
     marginTop: 2,
   },
+  brandCopy: { zIndex: 1 },
   brandTitle: {
-    display: "none",
     color: "#fff",
-    fontSize: 32,
-    lineHeight: 36,
+    fontSize: 30,
+    lineHeight: 35,
     fontWeight: "900",
     letterSpacing: -0.8,
     zIndex: 1,
   },
   brandText: {
-    display: "none",
     color: "#C8D5F8",
-    marginTop: 9,
-    fontSize: 13,
-    maxWidth: 290,
-    lineHeight: 19,
+    marginTop: 10,
+    fontSize: 13.5,
+    maxWidth: 300,
+    lineHeight: 20,
     zIndex: 1,
   },
   orb: {
-    display: "none",
     position: "absolute",
     width: 190,
     height: 190,
@@ -341,6 +366,8 @@ const s = StyleSheet.create({
     overflow: "hidden",
   },
   formWide: {
+    flex: 1,
+    justifyContent: "center",
     marginLeft: 0,
     marginRight: 0,
     marginTop: 0,
@@ -349,6 +376,7 @@ const s = StyleSheet.create({
     paddingTop: 38,
     paddingBottom: 32,
   },
+  formAccentHidden: { opacity: 0 },
   formAccent: {
     position: "absolute",
     top: 0,
