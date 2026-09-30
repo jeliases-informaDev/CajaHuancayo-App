@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck-and-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      # Informativo por ahora (no bloquea el build): las vulnerabilidades restantes
+      # viven en las herramientas de build de Expo (@expo/config-plugins y afines,
+      # no en el binario que corre en el celular del auditor) y su fix rompe
+      # compatibilidad. Pasar a bloqueante cuando se actualice el SDK de Expo.
+      - run: npm audit --omit=dev
+        continue-on-error: true
