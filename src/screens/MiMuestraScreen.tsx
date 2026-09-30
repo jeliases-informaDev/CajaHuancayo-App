@@ -82,6 +82,14 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<any>(null);
 
+  // "Disponibles": expedientes pendientes de tu misma zona que nadie tomó todavía —
+  // el auditor se los puede auto-asignar en vez de esperar a que el supervisor lo haga.
+  const [vista, setVista] = useState<"mia" | "disponibles">("mia");
+  const [disponibles, setDisponibles] = useState<any[]>([]);
+  const [loadingDisponibles, setLoadingDisponibles] = useState(false);
+  const [errorDisponibles, setErrorDisponibles] = useState("");
+  const [claimingId, setClaimingId] = useState<number | null>(null);
+
   const [resultado, setResultado] = useState("CONFORME");
   const [entregoDinero, setEntregoDinero] = useState<YesNo>(null);
   const [pagoComision, setPagoComision] = useState<YesNo>(null);
@@ -138,6 +146,40 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   }, [load]);
   useEffect(() => { if (refreshRevision > 0) load(true); }, [refreshRevision, load]);
   useEffect(() => { onDetailVisibilityChange?.(Boolean(selected)); }, [selected, onDetailVisibilityChange]);
+
+  const loadDisponibles = useCallback(async () => {
+    setLoadingDisponibles(true);
+    try {
+      const r: any = await api("/api/asignaciones/disponibles");
+      if (!mounted.current) return;
+      setDisponibles(r.data || []);
+      setErrorDisponibles("");
+    } catch (e: any) {
+      if (mounted.current) setErrorDisponibles(e.message || "No pudimos cargar los expedientes disponibles.");
+    } finally {
+      if (mounted.current) setLoadingDisponibles(false);
+    }
+  }, [api]);
+
+  useEffect(() => { if (vista === "disponibles") loadDisponibles(); }, [vista, loadDisponibles]);
+
+  const tomarCaso = async (idExpediente: number) => {
+    if (claimingId) return;
+    setClaimingId(idExpediente);
+    try {
+      await api(`/api/asignaciones/auto/${idExpediente}`, { method: "POST" });
+      await Promise.all([load(true), loadDisponibles()]);
+      setVista("mia");
+      Alert.alert("Caso tomado", "Este expediente ya está en tu muestra.");
+    } catch (e: any) {
+      // ALREADY_CLAIMED: otro auditor lo tomó primero entre que se cargó la lista y
+      // que este presionó "Tomar" — se refresca la lista para que deje de verlo.
+      Alert.alert("No se pudo tomar", e.message || "Intenta de nuevo.");
+      loadDisponibles();
+    } finally {
+      setClaimingId(null);
+    }
+  };
 
   const resetForm = () => {
     setSelected(null);
@@ -421,10 +463,59 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   };
 
   return (
-    <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[C.primary]} />}>
-      <Header title="Mi muestra" subtitle={`${asignaciones.length} expediente(s) asignado(s)`} />
+    <Screen refreshControl={<RefreshControl refreshing={vista === "mia" ? refreshing : loadingDisponibles} onRefresh={() => (vista === "mia" ? load(true) : loadDisponibles())} colors={[C.primary]} />}>
+      <Header title="Mi muestra" subtitle={vista === "mia" ? `${asignaciones.length} expediente(s) asignado(s)` : `${disponibles.length} disponible(s) en tu zona`} />
+
+      <View style={s.tabsRow}>
+        <Pressable onPress={() => setVista("mia")} style={[s.tabBtn, vista === "mia" && s.tabBtnOn]}>
+          <Text style={[s.tabBtnText, vista === "mia" && s.tabBtnTextOn]}>Mi muestra</Text>
+        </Pressable>
+        <Pressable onPress={() => setVista("disponibles")} style={[s.tabBtn, vista === "disponibles" && s.tabBtnOn]}>
+          <Text style={[s.tabBtnText, vista === "disponibles" && s.tabBtnTextOn]}>Disponibles en tu zona</Text>
+        </Pressable>
+      </View>
+
+      {vista === "disponibles" ? (
+        <>
+          <Text style={s.qHint}>Expedientes pendientes de tu departamento que ningún auditor ha tomado todavía. Al tomar uno, pasa a tu muestra.</Text>
+          {errorDisponibles && !disponibles.length ? <Empty title="No pudimos cargar la lista" text={errorDisponibles} /> : null}
+          {!errorDisponibles && !loadingDisponibles && !disponibles.length ? <Empty title="Nada disponible por ahora" text="No hay expedientes pendientes sin tomar en tu zona." /> : null}
+          {disponibles.map((expediente) => {
+            const isOtros = expediente.tipo_credito === "OTROS";
+            const claiming = claimingId === expediente.id_expediente;
+            return (
+              <Card key={expediente.id_expediente} style={s.listCard}>
+                <View style={s.listRow}>
+                  <View style={[s.avatar, { backgroundColor: isOtros ? "#FFF3E0" : "#EAF1FF" }]}>
+                    <Text style={[s.avatarText, { color: isOtros ? C.warning : C.primary }]}>{initialsOf(expediente.nombres_cliente)}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.listTitle} numberOfLines={1}>{expediente.nombres_cliente}</Text>
+                    <View style={s.chipRow}>
+                      <View style={[s.typeChip, { backgroundColor: isOtros ? "#FFF3E0" : "#EAF1FF" }]}>
+                        <MaterialCommunityIcons name={isOtros ? "store-outline" : "account-cash-outline"} size={12} color={isOtros ? C.warning : C.primary} />
+                        <Text style={[s.typeChipText, { color: isOtros ? C.warning : C.primary }]}>{expediente.tipo_credito}</Text>
+                      </View>
+                      <Text style={s.listCode}>{expediente.codigo_expediente}</Text>
+                    </View>
+                    <View style={s.listMetaRow}>
+                      <MaterialCommunityIcons name="map-marker-outline" size={13} color={C.muted} />
+                      <Text style={s.listSub} numberOfLines={1}>{expediente.distrito || "Sin distrito"} · {expediente.direccion_domicilio || "Sin dirección"}</Text>
+                    </View>
+                  </View>
+                </View>
+                <Pressable onPress={() => tomarCaso(expediente.id_expediente)} disabled={claiming} style={[s.claimBtn, claiming && s.claimBtnDisabled]}>
+                  <MaterialCommunityIcons name={claiming ? "timer-sand" : "hand-extended-outline"} size={16} color="#fff" />
+                  <Text style={s.claimBtnText}>{claiming ? "Tomando…" : "Tomar este caso"}</Text>
+                </Pressable>
+              </Card>
+            );
+          })}
+        </>
+      ) : (
+      <>
       {error && !asignaciones.length ? <Empty title="No pudimos cargar tu muestra" text={error} /> : null}
-      {!error && !asignaciones.length ? <Empty title="Sin expedientes asignados" text="Tu supervisor aún no te ha asignado una muestra para auditar." /> : null}
+      {!error && !asignaciones.length ? <Empty title="Sin expedientes asignados" text="Tu supervisor aún no te ha asignado una muestra, o revisa «Disponibles en tu zona» para tomar uno tú mismo." /> : null}
       {asignaciones.map((item) => {
         const isOtros = item.expediente.tipo_credito === "OTROS";
         const accent = priorityColor(item.prioridad);
@@ -467,11 +558,21 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
           </Pressable>
         );
       })}
+      </>
+      )}
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
+  tabsRow: { flexDirection: "row", gap: 8, marginTop: 4, marginBottom: 2 },
+  tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: "center", backgroundColor: "#F1F5F9" },
+  tabBtnOn: { backgroundColor: C.primary },
+  tabBtnText: { fontSize: 12.5, fontWeight: "800", color: C.muted },
+  tabBtnTextOn: { color: "#fff" },
+  claimBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, paddingVertical: 10, borderRadius: 12, backgroundColor: C.primary },
+  claimBtnDisabled: { opacity: 0.6 },
+  claimBtnText: { fontSize: 13, fontWeight: "800", color: "#fff" },
   closeBtn: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
   checklist: { flexDirection: "row", gap: 14, paddingHorizontal: 2, marginTop: -6 },
   checklistItem: { flexDirection: "row", alignItems: "center", gap: 5 },
