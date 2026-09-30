@@ -13,6 +13,7 @@ import {
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system/legacy";
+import * as ScreenCapture from "expo-screen-capture";
 import NetInfo from "@react-native-community/netinfo";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
@@ -146,6 +147,16 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   }, [load]);
   useEffect(() => { if (refreshRevision > 0) load(true); }, [refreshRevision, load]);
   useEffect(() => { onDetailVisibilityChange?.(Boolean(selected)); }, [selected, onDetailVisibilityChange]);
+
+  // La ficha de entrevista muestra datos del cliente, sus fotos y su firma: se
+  // bloquean capturas/grabación de pantalla mientras esa vista está abierta (no
+  // en el listado, donde no hay nada sensible que proteger).
+  useEffect(() => {
+    if (selected) {
+      ScreenCapture.preventScreenCaptureAsync().catch(() => {});
+      return () => { ScreenCapture.allowScreenCaptureAsync().catch(() => {}); };
+    }
+  }, [selected]);
 
   const loadDisponibles = useCallback(async () => {
     setLoadingDisponibles(true);
