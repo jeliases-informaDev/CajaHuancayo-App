@@ -26,6 +26,16 @@ import { getDeviceId } from "../deviceIdentity";
 import { cacheGet, cacheSet, createOfflineVisitId, enqueueVisit, syncPendingVisits } from "../offlineSync";
 
 const CACHE_KEY_MUESTRA = "mias_v1";
+const CACHE_KEY_GEO = "geo_cfg_v1";
+// Valores por defecto del servidor; se reemplazan por los reales (GET /api/visitas/config).
+const GEO_DEFAULT = { radio: 300, precision: 100 };
+
+function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371000;
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
 
 const RESULTADOS = [
   { value: "CONFORME", label: "Conforme", icon: "check-circle-outline" },
@@ -90,6 +100,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   const [loadingDisponibles, setLoadingDisponibles] = useState(false);
   const [errorDisponibles, setErrorDisponibles] = useState("");
   const [claimingId, setClaimingId] = useState<number | null>(null);
+  const [geoConfig, setGeoConfig] = useState(GEO_DEFAULT);
 
   const [resultado, setResultado] = useState("CONFORME");
   const [entregoDinero, setEntregoDinero] = useState<YesNo>(null);
@@ -173,6 +184,17 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   }, [api]);
 
   useEffect(() => { if (vista === "disponibles") loadDisponibles(); }, [vista, loadDisponibles]);
+
+  useEffect(() => {
+    cacheGet<typeof GEO_DEFAULT>(CACHE_KEY_GEO).then((cached) => { if (cached && mounted.current) setGeoConfig(cached.value); });
+    api<any>("/api/visitas/config")
+      .then((r) => {
+        const next = { radio: Number(r.data?.geocerca_radio_m) || GEO_DEFAULT.radio, precision: Number(r.data?.precision_maxima_m) || GEO_DEFAULT.precision };
+        if (mounted.current) setGeoConfig(next);
+        cacheSet(CACHE_KEY_GEO, next);
+      })
+      .catch(() => {});
+  }, [api]);
 
   const tomarCaso = async (idExpediente: number) => {
     if (claimingId) return;
@@ -295,6 +317,28 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
       const integrity = checkDeviceIntegrity();
       const deviceId = await getDeviceId();
       const idExpediente = Number(selected.expediente.id_expediente);
+
+      // Verificación en el propio celular, ANTES de guardar: es la misma regla que
+      // aplica el servidor, pero el auditor la ve al instante (incluso sin señal) en
+      // vez de descubrir un rechazo horas después al sincronizar.
+      if (fix.mocked) {
+        throw new Error("Se detectó una ubicación simulada (Fake GPS). Desactívala para poder registrar la visita.");
+      }
+      if (!integrity.ok) {
+        throw new Error("Este dispositivo no pasa la verificación de integridad (emulador, root o jailbreak). No se puede registrar la visita.");
+      }
+      const latDomicilio = Number(selected.expediente.latitud);
+      const lngDomicilio = Number(selected.expediente.longitud);
+      const distancia = Number.isFinite(latDomicilio) && Number.isFinite(lngDomicilio) && selected.expediente.latitud != null && selected.expediente.longitud != null
+        ? distanciaMetros(latDomicilio, lngDomicilio, fix.latitude, fix.longitude)
+        : null;
+      const motivos: string[] = [];
+      if (distancia != null && distancia > geoConfig.radio) motivos.push(`estás a ${Math.round(distancia)} m del domicilio (máximo ${geoConfig.radio} m)`);
+      if (fix.accuracy != null && fix.accuracy > geoConfig.precision) motivos.push(`el GPS tiene una precisión de ${Math.round(fix.accuracy)} m (máximo ${geoConfig.precision} m)`);
+      const ubicacionObservada = motivos.join("; ");
+      if (motivos.length && resultado === "CONFORME") {
+        throw new Error(`No puedes registrar CONFORME: ${ubicacionObservada}. Acércate al domicilio y espera a que el GPS se estabilice, o elige otro resultado (Observado / No ubicado) y explica el motivo en el comentario.`);
+      }
       const queueId = createOfflineVisitId(idExpediente);
       await enqueueVisit({
         id: queueId,
@@ -328,16 +372,31 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
       });
       resetForm();
       let synced = false;
+      let rejectedReason: string | null = null;
       try {
         const network = await NetInfo.fetch();
         const connected = Boolean(network.isConnected && network.isInternetReachable !== false);
-        if (connected) { const result = await syncPendingVisits(); synced = result.syncedIds.includes(queueId); }
+        if (connected) {
+          const result = await syncPendingVisits();
+          synced = result.syncedIds.includes(queueId);
+          rejectedReason = result.rejected.find((r) => r.id === queueId)?.reason ?? null;
+        }
       } catch {}
       await load(true);
-      Alert.alert(
-        synced ? "Visita registrada" : "Visita guardada localmente",
-        synced ? "La ficha fue enviada correctamente." : "Se sincronizará automáticamente cuando haya conexión.",
-      );
+      const alerta = ubicacionObservada
+        ? `\n\nQuedó con alerta de ubicación: ${ubicacionObservada}.`
+        : "";
+      if (rejectedReason) {
+        Alert.alert(
+          "Visita rechazada por el servidor",
+          `${rejectedReason}\n\nNo se registró. El expediente sigue en tu muestra: corrige lo indicado y vuelve a registrarlo. (El detalle queda en Perfil.)`,
+        );
+      } else {
+        Alert.alert(
+          synced ? "Visita registrada" : "Visita guardada localmente",
+          (synced ? "La ficha fue enviada correctamente." : "Aún no llegó al servidor: se enviará automáticamente cuando haya conexión. Hasta entonces el expediente NO cambia de estado.") + alerta,
+        );
+      }
     } catch (e: any) {
       setError2(e.message || "No se pudo guardar la visita.");
     } finally {

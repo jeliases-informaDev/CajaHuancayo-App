@@ -46,7 +46,18 @@ type PendingRow = {
   attempts: number;
 };
 
-export type SyncResult = { attempted: number; synced: number; pending: number; syncedIds: string[] };
+export type RejectedVisit = { id: string; idExpediente: number; reason: string };
+export type SyncResult = { attempted: number; synced: number; pending: number; syncedIds: string[]; rejected: RejectedVisit[] };
+
+// Un rechazo "de negocio" del servidor (geocerca, foto reusada, asignación cancelada,
+// datos inválidos...) nunca se va a arreglar reintentando: esa visita se aparta como
+// RECHAZADA y NO debe frenar a las que vienen detrás. Lo transitorio (sin red, 5xx,
+// sesión vencida 401, bloqueo de dispositivo 403) sí se reintenta y conserva el orden.
+function isPermanentRejection(error: any) {
+  const status = Number(error?.status);
+  if ([400, 404, 409, 413, 422].includes(status)) return true;
+  return status === 403 && error?.code === "NOT_ASSIGNED";
+}
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let activeSync: Promise<SyncResult> | null = null;
@@ -76,6 +87,9 @@ async function database() {
           updated_at INTEGER NOT NULL
         );
       `);
+      // Instalaciones anteriores ya tienen la tabla sin "status": se agrega la columna
+      // si falta (en las nuevas ya existe y el ALTER simplemente falla sin consecuencia).
+      await db.execAsync("ALTER TABLE pending_visits ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDING'").catch(() => {});
       return db;
     });
   }
@@ -132,8 +146,9 @@ async function requestJson(path: string, options: RequestInit, token: string, de
     const type = response.headers.get("content-type") || "";
     const body = type.includes("application/json") ? await response.json() : await response.text();
     if (!response.ok) {
-      const error = new Error((body as any)?.error || `Error de sincronización HTTP ${response.status}`) as Error & { status?: number };
+      const error = new Error((body as any)?.error || `Error de sincronización HTTP ${response.status}`) as Error & { status?: number; code?: string };
       error.status = response.status;
+      error.code = (body as any)?.code;
       throw error;
     }
     return body as any;
@@ -158,7 +173,10 @@ async function evidenceKey(photoUri: string, idExpediente: number, tipo: "FOTO_P
   });
   if (upload.status < 200 || upload.status >= 300) {
     const body = (() => { try { return JSON.parse(upload.body); } catch { return null; } })();
-    throw new Error(body?.error || `No se pudo subir la fotografía (HTTP ${upload.status}).`);
+    const error = new Error(body?.error || `No se pudo subir la fotografía (HTTP ${upload.status}).`) as Error & { status?: number; code?: string };
+    error.status = upload.status;
+    error.code = body?.code;
+    throw error;
   }
   return String(signed.data.key);
 }
@@ -171,11 +189,11 @@ async function synchronize(tokenOverride?: string | null): Promise<SyncResult> {
     || (Platform.OS === "web" ? globalThis.localStorage?.getItem(TOKEN_KEY) : await SecureStore.getItemAsync(TOKEN_KEY));
   const deviceId = await getDeviceId();
   if (!token) {
-    const row = await db.getFirstAsync<{ total: number }>("SELECT COUNT(*) AS total FROM pending_visits");
-    return { attempted: 0, synced: 0, pending: Number(row?.total || 0), syncedIds: [] };
+    const row = await db.getFirstAsync<{ total: number }>("SELECT COUNT(*) AS total FROM pending_visits WHERE status = 'PENDING'");
+    return { attempted: 0, synced: 0, pending: Number(row?.total || 0), syncedIds: [], rejected: [] };
   }
-  const items = await db.getAllAsync<PendingRow>("SELECT * FROM pending_visits ORDER BY created_at ASC");
-  const result: SyncResult = { attempted: 0, synced: 0, pending: items.length, syncedIds: [] };
+  const items = await db.getAllAsync<PendingRow>("SELECT * FROM pending_visits WHERE status = 'PENDING' ORDER BY created_at ASC");
+  const result: SyncResult = { attempted: 0, synced: 0, pending: items.length, syncedIds: [], rejected: [] };
   if (!items.length) return result;
 
   for (const item of items) {
@@ -231,12 +249,21 @@ async function synchronize(tokenOverride?: string | null): Promise<SyncResult> {
       result.pending -= 1;
       result.syncedIds.push(item.id);
     } catch (error: any) {
-      await db.runAsync(
-        "UPDATE pending_visits SET attempts = attempts + 1, last_error = ?, updated_at = ? WHERE id = ?",
-        String(error?.message || "Error de sincronización").slice(0, 500), Date.now(), item.id,
-      );
-      if (error?.status === 401 || error?.status === 403) break;
-      // Se conserva el orden: una visita posterior no debe adelantarse a otra.
+      if (isPermanentRejection(error)) {
+        // Rechazo definitivo del servidor: se aparta esta visita (queda en el celular
+        // con su motivo, visible en "Mi perfil") y se sigue con las demás.
+        const reason = String(error?.message || "Rechazada por el servidor").slice(0, 500);
+        await db.runAsync("UPDATE pending_visits SET status = 'REJECTED', attempts = attempts + 1, last_error = ?, updated_at = ? WHERE id = ?", reason, Date.now(), item.id);
+        result.pending -= 1;
+        result.rejected.push({ id: item.id, idExpediente: item.id_expediente, reason });
+        continue;
+      }
+      // Sin "status" = nunca llegó al servidor (sin internet / DNS / timeout).
+      const reason = error?.status
+        ? String(error?.message || "Error de sincronización").slice(0, 500)
+        : "Sin conexión con el servidor. La visita sigue guardada y se reintentará sola.";
+      await db.runAsync("UPDATE pending_visits SET attempts = attempts + 1, last_error = ?, updated_at = ? WHERE id = ?", reason, Date.now(), item.id);
+      // Fallo transitorio: se conserva el orden (una visita posterior no se adelanta a otra).
       break;
     }
   }
@@ -289,19 +316,42 @@ export async function syncPendingVisits(token?: string | null) {
 
 export async function pendingVisitCount() {
   const db = await database();
-  const row = await db.getFirstAsync<{ total: number }>("SELECT COUNT(*) AS total FROM pending_visits");
+  const row = await db.getFirstAsync<{ total: number }>("SELECT COUNT(*) AS total FROM pending_visits WHERE status = 'PENDING'");
   return Number(row?.total || 0);
 }
 
-// Motivo del último intento fallido (si lo hay), para mostrarlo en pantalla
-// en vez de un mensaje genérico — ayuda a distinguir "sin señal" de un
-// rechazo real del servidor (p. ej. Fake GPS, geocerca, foto reusada).
+// Motivo del último intento fallido de las visitas aún pendientes (normalmente
+// "sin conexión"); los rechazos definitivos del servidor se listan aparte.
 export async function lastSyncError(): Promise<string | null> {
   const db = await database();
   const row = await db.getFirstAsync<{ last_error: string | null }>(
-    "SELECT last_error FROM pending_visits WHERE last_error IS NOT NULL ORDER BY updated_at DESC LIMIT 1",
+    "SELECT last_error FROM pending_visits WHERE status = 'PENDING' AND last_error IS NOT NULL ORDER BY updated_at DESC LIMIT 1",
   );
   return row?.last_error || null;
+}
+
+// Visitas que el servidor rechazó de forma definitiva (geocerca, foto reusada,
+// asignación cancelada...): no se reintentan, el auditor debe verlas y descartarlas.
+export async function rejectedVisits(): Promise<RejectedVisit[]> {
+  const db = await database();
+  const rows = await db.getAllAsync<{ id: string; id_expediente: number; last_error: string | null }>(
+    "SELECT id, id_expediente, last_error FROM pending_visits WHERE status = 'REJECTED' ORDER BY updated_at DESC",
+  );
+  return rows.map((r) => ({ id: r.id, idExpediente: r.id_expediente, reason: r.last_error || "Rechazada por el servidor" }));
+}
+
+export async function discardRejectedVisit(id: string) {
+  const db = await database();
+  const row = await db.getFirstAsync<{ photo1_uri: string; photo2_uri: string }>(
+    "SELECT photo1_uri, photo2_uri FROM pending_visits WHERE id = ? AND status = 'REJECTED'", id,
+  );
+  if (!row) return;
+  await db.runAsync("DELETE FROM pending_visits WHERE id = ?", id);
+  await Promise.all([
+    FileSystem.deleteAsync(row.photo1_uri, { idempotent: true }).catch(() => {}),
+    row.photo2_uri ? FileSystem.deleteAsync(row.photo2_uri, { idempotent: true }).catch(() => {}) : Promise.resolve(),
+    FileSystem.deleteAsync(await payloadPath(id), { idempotent: true }).catch(() => {}),
+  ]);
 }
 
 export async function registerOfflineSyncTask() {

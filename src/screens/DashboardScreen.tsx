@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
 import { Badge, Card, Empty, Header, Loading, Screen } from "../ui";
 import { C } from "../theme";
-import { cacheGet, cacheSet, pendingVisitCount } from "../offlineSync";
+import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
 
 const CACHE_KEY_MUESTRA = "mias_v1";
 
@@ -24,6 +24,7 @@ export default function DashboardScreen({ refreshRevision = 0 }: { refreshRevisi
   const { api, user } = useAuth();
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
   const [pendientesSync, setPendientesSync] = useState(0);
+  const [rechazadas, setRechazadas] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -37,6 +38,9 @@ export default function DashboardScreen({ refreshRevision = 0 }: { refreshRevisi
     // los datos del servidor si tarda, falla o (en web) nunca resuelve.
     pendingVisitCount()
       .then((n) => { if (mounted.current && current === requestId.current) setPendientesSync(n); })
+      .catch(() => {});
+    rejectedVisits()
+      .then((list) => { if (mounted.current && current === requestId.current) setRechazadas(list.length); })
       .catch(() => {});
     try {
       const r: any = await api("/api/asignaciones/mias");
@@ -130,6 +134,19 @@ export default function DashboardScreen({ refreshRevision = 0 }: { refreshRevisi
               {pendientesSync ? <Badge status="PENDIENTE" label="Pendiente" /> : <Badge status="ACTIVO" label="Al día" />}
             </View>
           </Card>
+          {rechazadas ? (
+            <Card>
+              <View style={s.routeRow}>
+                <View style={[s.routeIcon, s.routeIconWarn]}>
+                  <MaterialCommunityIcons name="alert-octagon-outline" size={26} color={C.danger} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.routeTitle}>{`${rechazadas} visita(s) rechazada(s) por el servidor`}</Text>
+                  <Text style={s.routeSub}>No se enviaron. Abre Perfil para ver el motivo; el expediente sigue en tu muestra para volver a registrarlo.</Text>
+                </View>
+              </View>
+            </Card>
+          ) : null}
         </>
       )}
     </Screen>

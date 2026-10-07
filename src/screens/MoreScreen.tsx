@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
 import { Button, Card, Header, Screen } from "../ui";
 import { C } from "../theme";
-import { lastSyncError, pendingVisitCount, syncPendingVisits } from "../offlineSync";
+import { discardRejectedVisit, lastSyncError, pendingVisitCount, rejectedVisits, syncPendingVisits, type RejectedVisit } from "../offlineSync";
 
 const advisorDisplayName = (user: {
   nombres?: string;
@@ -22,10 +22,20 @@ export default function MoreScreen() {
   const [pending, setPending] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [rejected, setRejected] = useState<RejectedVisit[]>([]);
   const refreshPending = useCallback(() => {
     pendingVisitCount().then(setPending).catch(() => {});
     lastSyncError().then(setSyncError).catch(() => {});
+    rejectedVisits().then(setRejected).catch(() => {});
   }, []);
+  const discard = (visit: RejectedVisit) => Alert.alert(
+    "Descartar visita rechazada",
+    "Se borra del celular (ficha, fotos y firma). El expediente sigue en tu muestra y puedes volver a registrar la visita.",
+    [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Descartar", style: "destructive", onPress: () => { discardRejectedVisit(visit.id).then(refreshPending).catch(() => {}); } },
+    ],
+  );
   useEffect(() => {
     refreshPending();
     const timer = setInterval(refreshPending, 5000);
@@ -39,11 +49,15 @@ export default function MoreScreen() {
       setPending(result.pending);
       const reason = await lastSyncError();
       setSyncError(reason);
+      refreshPending();
+      const rechazadas = result.rejected.length
+        ? `\n\n${result.rejected.length} visita(s) fueron rechazadas por el servidor (ver abajo el motivo).`
+        : "";
       Alert.alert(
-        result.pending ? "Sincronización pendiente" : "Todo sincronizado",
-        result.pending
+        result.pending ? "Sincronización pendiente" : (result.synced ? "Visitas enviadas" : "Sin visitas por enviar"),
+        (result.pending
           ? (reason ? `No se pudo enviar: ${reason}` : `${result.pending} visita(s) siguen seguras en el dispositivo y se reintentarán automáticamente.`)
-          : "No quedan visitas ni evidencias pendientes de envío.",
+          : "No quedan visitas pendientes de envío.") + rechazadas,
       );
     } finally {
       setSyncing(false);
@@ -76,6 +90,23 @@ export default function MoreScreen() {
         </View>
       ) : null}
     </Card>
+    {rejected.length ? (
+      <Card>
+        <Text style={s.sectionLabel}>VISITAS RECHAZADAS POR EL SERVIDOR</Text>
+        {rejected.map((visit) => (
+          <View key={visit.id} style={s.syncErrorBox}>
+            <MaterialCommunityIcons name="alert-octagon-outline" size={16} color={C.danger} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.syncErrorText}>{`Expediente #${visit.idExpediente}: ${visit.reason}`}</Text>
+              <Pressable onPress={() => discard(visit)} style={({ pressed }) => [s.discardBtn, pressed && s.pressed]}>
+                <Text style={s.discardText}>Descartar</Text>
+              </Pressable>
+            </View>
+          </View>
+        ))}
+        <Text style={s.rowSub}>No se reintentan solas. El expediente sigue en tu muestra: corrige lo indicado y vuelve a registrar la visita.</Text>
+      </Card>
+    ) : null}
     <Card>
       <Text style={s.sectionLabel}>AJUSTES Y AYUDA</Text>
       <Pressable onPress={openSettings} style={({ pressed }) => [s.row, pressed && s.pressed]}><View style={[s.rowIcon, s.settingsIcon]}><MaterialCommunityIcons name="cellphone-cog" size={22} color={C.primary} /></View><View style={s.rowCopy}><Text style={s.rowTitle}>Permisos del dispositivo</Text><Text style={s.rowSub}>Administra ubicación, cámara y notificaciones.</Text></View><MaterialCommunityIcons name="chevron-right" size={22} color="#9AA5B5" /></Pressable>
@@ -92,5 +123,6 @@ const s = StyleSheet.create({
   roleBadge: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#173A7A", borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, marginTop: 10 }, roleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.success }, role: { fontSize: 9, fontWeight: "900", color: "#DCE6FF", letterSpacing: 1 },
   sectionLabel: { fontSize: 9, color: C.muted, fontWeight: "900", letterSpacing: 1, marginBottom: 7 }, row: { flexDirection: "row", gap: 12, alignItems: "center", paddingVertical: 10 }, rowIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" }, successIcon: { backgroundColor: "#E5F8F2" }, syncIcon: { backgroundColor: "#E8EEFF" }, settingsIcon: { backgroundColor: "#EAF2FF" }, helpIcon: { backgroundColor: "#FFF5DB" },
   rowCopy: { flex: 1 }, rowTitle: { fontSize: 14, fontWeight: "900", color: C.text }, rowSub: { fontSize: 10.5, lineHeight: 15, color: C.muted, marginTop: 3 }, separator: { height: 1, backgroundColor: C.border }, online: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#E5F8F2", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 12 }, onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.success }, onlineText: { color: C.success, fontSize: 9, fontWeight: "900" }, pending: { backgroundColor: "#FFF2D7" }, pendingDot: { backgroundColor: C.warning }, pendingText: { color: "#9A6300" }, pressed: { opacity: 0.62 }, version: { textAlign: "center", fontSize: 10, color: C.muted },
+  discardBtn: { alignSelf: "flex-start", marginTop: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 9, backgroundColor: "#fff", borderWidth: 1, borderColor: C.danger }, discardText: { fontSize: 11, fontWeight: "800", color: C.danger },
   syncErrorBox: { flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: "#FFF1F2", borderRadius: 10, padding: 9, marginTop: 2 }, syncErrorText: { flex: 1, fontSize: 10.5, lineHeight: 14, color: C.danger, fontWeight: "700" },
 });
