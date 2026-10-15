@@ -1,89 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Linking,
-  Modal,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import * as FileSystem from "expo-file-system/legacy";
-import * as ScreenCapture from "expo-screen-capture";
-import NetInfo from "@react-native-community/netinfo";
+import { Alert, Linking, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
-import { Badge, Button, Card, Empty, Header, Loading, Screen, SectionTitle } from "../ui";
-import { C, money } from "../theme";
-import SignaturePad from "../SignaturePad";
-import { getAuditVisitFix } from "../useAuditorLocation";
-import { checkDeviceIntegrity } from "../deviceIntegrity";
-import { getDeviceId } from "../deviceIdentity";
-import { cacheGet, cacheSet, createOfflineVisitId, enqueueVisit, syncPendingVisits } from "../offlineSync";
+import { Badge, Card, Empty, Header, Loading, Screen } from "../ui";
+import { C } from "../theme";
+import FichaWizard from "../ficha/FichaWizard";
+import { cacheGet, cacheSet } from "../offlineSync";
 
 const CACHE_KEY_MUESTRA = "mias_v1";
 const CACHE_KEY_GEO = "geo_cfg_v1";
 // Valores por defecto del servidor; se reemplazan por los reales (GET /api/visitas/config).
 const GEO_DEFAULT = { radio: 300, precision: 100 };
-
-function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const R = 6371000;
-  const rad = (d: number) => (d * Math.PI) / 180;
-  const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-const RESULTADOS = [
-  { value: "CONFORME", label: "Conforme", icon: "check-circle-outline" },
-  { value: "OBSERVADO", label: "Observado", icon: "alert-circle-outline" },
-  { value: "NO_UBICADO", label: "No ubicado", icon: "map-marker-remove-outline" },
-  { value: "RECHAZADO", label: "Rechazado", icon: "close-circle-outline" },
-];
-
-type YesNo = boolean | null;
-
-function YesNoRow({ label, value, onChange }: { label: string; value: YesNo; onChange: (v: YesNo) => void }) {
-  return (
-    <View style={s.qRow}>
-      <Text style={s.qLabel}>{label}</Text>
-      <View style={s.qButtons}>
-        <Pressable onPress={() => onChange(true)} style={[s.qBtn, value === true && s.qBtnYesOn]}>
-          <Text style={[s.qBtnText, value === true && s.qBtnTextOn]}>SI</Text>
-        </Pressable>
-        <Pressable onPress={() => onChange(false)} style={[s.qBtn, value === false && s.qBtnNoOn]}>
-          <Text style={[s.qBtnText, value === false && s.qBtnTextOn]}>NO</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-function ExpedienteInfo({ expediente }: { expediente: any }) {
-  const rows: [string, any][] = [
-    ["Cliente", expediente.nombres_cliente],
-    ["Documento", `${expediente.tipo_documento_cliente || "DNI"} ${expediente.numero_documento_cliente}`],
-    ["Dirección", expediente.direccion_domicilio || "No registrada"],
-    ["Distrito / Provincia", `${expediente.distrito || "-"} / ${expediente.provincia || "-"}`],
-    ["Teléfono", expediente.telefono_cliente || "No registrado"],
-    ["Asesor responsable", expediente.asesor_responsable],
-    ["Monto desembolsado", expediente.monto_desembolso ? money(expediente.monto_desembolso) : "-"],
-  ];
-  return (
-    <Card>
-      <SectionTitle title="Datos del expediente (referencia)" />
-      {rows.map(([label, value]) => (
-        <View key={label} style={s.infoRow}>
-          <Text style={s.infoLabel}>{label}</Text>
-          <Text style={s.infoValue}>{String(value ?? "-")}</Text>
-        </View>
-      ))}
-    </Card>
-  );
-}
 
 export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilityChange, currentLocation }: { refreshRevision?: number; onDetailVisibilityChange?: (open: boolean) => void; currentLocation?: { latitude: number; longitude: number } | null }) {
   const { api } = useAuth();
@@ -102,34 +29,6 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   const [claimingId, setClaimingId] = useState<number | null>(null);
   const [geoConfig, setGeoConfig] = useState(GEO_DEFAULT);
 
-  const [resultado, setResultado] = useState("CONFORME");
-  const [entregoDinero, setEntregoDinero] = useState<YesNo>(null);
-  const [pagoComision, setPagoComision] = useState<YesNo>(null);
-  const [recibioMontoTotal, setRecibioMontoTotal] = useState<YesNo>(null);
-  const [conyugeConoce, setConyugeConoce] = useState<YesNo>(null);
-  const [creditosParalelos, setCreditosParalelos] = useState<YesNo>(null);
-  const [comparteDinero, setComparteDinero] = useState<YesNo>(null);
-  const [titularAdministra, setTitularAdministra] = useState<YesNo>(null);
-  const [tieneMicroseguro, setTieneMicroseguro] = useState<YesNo>(null);
-  const [dondePaga, setDondePaga] = useState("");
-  const [comentarioNegocio, setComentarioNegocio] = useState("");
-  const [comentarioAuditor, setComentarioAuditor] = useState("");
-
-  const [photo, setPhoto] = useState("");
-  const [photo2, setPhoto2] = useState("");
-  const [photoProcessing, setPhotoProcessing] = useState(false);
-  const [cameraSlot, setCameraSlot] = useState<1 | 2 | null>(null);
-  const [capturing, setCapturing] = useState(false);
-  const [signature, setSignature] = useState("");
-  const [signatureKey, setSignatureKey] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const [error2, setError2] = useState("");
-  // La ficha (cuestionario/comentarios) no debe interrumpirse pidiendo la foto: se
-  // llena completa primero, y recién después aparece el paso de evidencias.
-  const [paso, setPaso] = useState<"ficha" | "evidencia">("ficha");
-
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
   const mounted = useRef(true);
 
   const load = useCallback(async (background = false) => {
@@ -158,16 +57,6 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   }, [load]);
   useEffect(() => { if (refreshRevision > 0) load(true); }, [refreshRevision, load]);
   useEffect(() => { onDetailVisibilityChange?.(Boolean(selected)); }, [selected, onDetailVisibilityChange]);
-
-  // La ficha de entrevista muestra datos del cliente, sus fotos y su firma: se
-  // bloquean capturas/grabación de pantalla mientras esa vista está abierta (no
-  // en el listado, donde no hay nada sensible que proteger).
-  useEffect(() => {
-    if (selected) {
-      ScreenCapture.preventScreenCaptureAsync().catch(() => {});
-      return () => { ScreenCapture.allowScreenCaptureAsync().catch(() => {}); };
-    }
-  }, [selected]);
 
   const loadDisponibles = useCallback(async () => {
     setLoadingDisponibles(true);
@@ -214,314 +103,17 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     }
   };
 
-  const resetForm = () => {
-    setSelected(null);
-    setResultado("CONFORME");
-    setEntregoDinero(null); setPagoComision(null); setRecibioMontoTotal(null);
-    setConyugeConoce(null); setCreditosParalelos(null); setComparteDinero(null);
-    setTitularAdministra(null); setTieneMicroseguro(null);
-    setDondePaga(""); setComentarioNegocio(""); setComentarioAuditor("");
-    setPhoto(""); setPhoto2(""); setSignature(""); setSignatureKey((k) => k + 1);
-    setError2("");
-    setPaso("ficha");
-  };
-
-  const takePhoto = async (slot: 1 | 2) => {
-    const permission = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
-    if (!permission?.granted) {
-      if (permission?.canAskAgain === false) {
-        Alert.alert("Permiso de cámara bloqueado", "Activa el permiso de Cámara desde los ajustes del dispositivo.", [
-          { text: "Cancelar", style: "cancel" }, { text: "Abrir ajustes", onPress: () => Linking.openSettings() },
-        ]);
-      } else {
-        Alert.alert("Permiso requerido", "Debes permitir el uso de la cámara para registrar las evidencias.");
-      }
-      return;
-    }
-    setCameraSlot(slot);
-  };
-
-  const capturePhoto = async () => {
-    if (!cameraSlot || capturing || !cameraRef.current) return;
-    const slot = cameraSlot;
-    try {
-      setCapturing(true);
-      setPhotoProcessing(true);
-      const captured = await cameraRef.current.takePictureAsync({ quality: 0.8, skipProcessing: false });
-      if (!captured?.uri) throw new Error("La cámara no devolvió una fotografía válida.");
-      const compressed = await manipulateAsync(captured.uri, [{ resize: { width: 1024 } }], { compress: 0.65, format: SaveFormat.JPEG });
-      const directory = `${FileSystem.documentDirectory}evidence-drafts`;
-      await FileSystem.makeDirectoryAsync(directory, { intermediates: true }).catch(() => {});
-      const persistentUri = `${directory}/expediente-${selected.expediente.id_expediente}-foto-${slot}-${Date.now()}.jpg`;
-      await FileSystem.copyAsync({ from: compressed.uri, to: persistentUri });
-      if (slot === 1) setPhoto(persistentUri); else setPhoto2(persistentUri);
-      setCameraSlot(null);
-    } catch (e: any) {
-      Alert.alert("Fotografía no disponible", e.message);
-    } finally {
-      setCapturing(false);
-      setPhotoProcessing(false);
-    }
-  };
-
-  // Solo lo que se llena en el paso "Ficha" (cuestionario + comentarios). No incluye
-  // foto ni firma: esas se piden recién en el paso "Evidencias".
-  const validarPasoFicha = (): string | null => {
-    if (entregoDinero === null || pagoComision === null || recibioMontoTotal === null) {
-      return "Responde las 3 preguntas obligatorias del cuestionario de fraude.";
-    }
-    if (resultado !== "CONFORME" && comentarioAuditor.trim().length < 10) {
-      return "Este resultado requiere un comentario del auditor de al menos 10 caracteres.";
-    }
-    return null;
-  };
-
-  const validarFicha = (): string | null => {
-    const problemaFicha = validarPasoFicha();
-    if (problemaFicha) return problemaFicha;
-    if (!photo) return "Toma la fotografía principal de evidencia.";
-    if (!signature) return "Solicita la firma del cliente antes de guardar.";
-    return null;
-  };
-
-  const continuarAEvidencias = () => {
-    setError2("");
-    const problema = validarPasoFicha();
-    if (problema) { setError2(problema); return; }
-    setPaso("evidencia");
-  };
-
-  // Antes de enviar, se pide una confirmación explícita: una vez enviada la ficha
-  // queda cerrada (no editable), así que es la última oportunidad de revisar.
-  const confirmarEnvio = () => {
-    setError2("");
-    const problema = validarFicha();
-    if (problema) { setError2(problema); return; }
-    Alert.alert(
-      "Revisa antes de enviar",
-      `Resultado registrado: ${resultado}.\nCuestionario, foto principal y firma del cliente: completos.\n\nUna vez enviada, la ficha queda cerrada y no se puede editar. ¿Confirmas que toda la información es correcta?`,
-      [
-        { text: "Revisar de nuevo", style: "cancel" },
-        { text: "Confirmar y enviar", onPress: () => save() },
-      ],
-    );
-  };
-
-  const save = async () => {
-    try {
-      setError2("");
-      const problema = validarFicha();
-      if (problema) throw new Error(problema);
-      setSaving(true);
-      const fix = await getAuditVisitFix();
-      const integrity = checkDeviceIntegrity();
-      const deviceId = await getDeviceId();
-      const idExpediente = Number(selected.expediente.id_expediente);
-
-      // Verificación en el propio celular, ANTES de guardar: es la misma regla que
-      // aplica el servidor, pero el auditor la ve al instante (incluso sin señal) en
-      // vez de descubrir un rechazo horas después al sincronizar.
-      if (fix.mocked) {
-        throw new Error("Se detectó una ubicación simulada (Fake GPS). Desactívala para poder registrar la visita.");
-      }
-      if (!integrity.ok) {
-        throw new Error("Este dispositivo no pasa la verificación de integridad (emulador, root o jailbreak). No se puede registrar la visita.");
-      }
-      const latDomicilio = Number(selected.expediente.latitud);
-      const lngDomicilio = Number(selected.expediente.longitud);
-      const distancia = Number.isFinite(latDomicilio) && Number.isFinite(lngDomicilio) && selected.expediente.latitud != null && selected.expediente.longitud != null
-        ? distanciaMetros(latDomicilio, lngDomicilio, fix.latitude, fix.longitude)
-        : null;
-      const motivos: string[] = [];
-      if (distancia != null && distancia > geoConfig.radio) motivos.push(`estás a ${Math.round(distancia)} m del domicilio (máximo ${geoConfig.radio} m)`);
-      if (fix.accuracy != null && fix.accuracy > geoConfig.precision) motivos.push(`el GPS tiene una precisión de ${Math.round(fix.accuracy)} m (máximo ${geoConfig.precision} m)`);
-      const ubicacionObservada = motivos.join("; ");
-      if (motivos.length && resultado === "CONFORME") {
-        throw new Error(`No puedes registrar CONFORME: ${ubicacionObservada}. Acércate al domicilio y espera a que el GPS se estabilice, o elige otro resultado (Observado / No ubicado) y explica el motivo en el comentario.`);
-      }
-      const queueId = createOfflineVisitId(idExpediente);
-      await enqueueVisit({
-        id: queueId,
-        idExpediente,
-        idAsignacion: Number(selected.id_asignacion),
-        fechaHoraCheckin: new Date().toISOString(),
-        resultado,
-        respuestasCuestionario: {
-          entrego_dinero_asesor: entregoDinero,
-          pago_comision_adicional: pagoComision,
-          recibio_monto_total: recibioMontoTotal,
-          conyuge_conoce_prestamo: conyugeConoce ?? undefined,
-          creditos_paralelos: creditosParalelos ?? undefined,
-          comparte_dinero_credito: comparteDinero ?? undefined,
-          titular_administra_negocio: titularAdministra ?? undefined,
-          tiene_microseguro: tieneMicroseguro ?? undefined,
-          donde_realiza_pagos: dondePaga.trim() || undefined,
-        },
-        comentarioNegocio: comentarioNegocio.trim(),
-        comentarioAuditor: comentarioAuditor.trim(),
-        otrosClientesDomicilio: [],
-        otrosIngresos: [],
-        firma: signature,
-        photo1Uri: photo,
-        photo2Uri: photo2,
-        latitude: fix.latitude,
-        longitude: fix.longitude,
-        precisionMeters: fix.accuracy,
-        mockLocation: fix.mocked,
-        deviceIntegrityOk: integrity.ok,
-      });
-      resetForm();
-      let synced = false;
-      let rejectedReason: string | null = null;
-      try {
-        const network = await NetInfo.fetch();
-        const connected = Boolean(network.isConnected && network.isInternetReachable !== false);
-        if (connected) {
-          const result = await syncPendingVisits();
-          synced = result.syncedIds.includes(queueId);
-          rejectedReason = result.rejected.find((r) => r.id === queueId)?.reason ?? null;
-        }
-      } catch {}
-      await load(true);
-      const alerta = ubicacionObservada
-        ? `\n\nQuedó con alerta de ubicación: ${ubicacionObservada}.`
-        : "";
-      if (rejectedReason) {
-        Alert.alert(
-          "Visita rechazada por el servidor",
-          `${rejectedReason}\n\nNo se registró. El expediente sigue en tu muestra: corrige lo indicado y vuelve a registrarlo. (El detalle queda en Perfil.)`,
-        );
-      } else {
-        Alert.alert(
-          synced ? "Visita registrada" : "Visita guardada localmente",
-          (synced ? "La ficha fue enviada correctamente." : "Aún no llegó al servidor: se enviará automáticamente cuando haya conexión. Hasta entonces el expediente NO cambia de estado.") + alerta,
-        );
-      }
-    } catch (e: any) {
-      setError2(e.message || "No se pudo guardar la visita.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   if (loading && !asignaciones.length) return <Loading />;
 
   if (selected) {
-    const expediente = selected.expediente;
     return (
-      <Screen>
-        <Header title="Ficha de entrevista" subtitle={expediente.codigo_expediente} right={
-          <Pressable onPress={resetForm} style={s.closeBtn}><MaterialCommunityIcons name="close" size={20} color={C.muted} /></Pressable>
-        } />
-
-        <View style={s.checklist}>
-          {[
-            { label: "Cuestionario", done: entregoDinero !== null && pagoComision !== null && recibioMontoTotal !== null },
-            { label: "Foto principal", done: Boolean(photo) },
-            { label: "Firma", done: Boolean(signature) },
-          ].map((step) => (
-            <View key={step.label} style={s.checklistItem}>
-              <MaterialCommunityIcons name={step.done ? "check-circle" : "circle-outline"} size={16} color={step.done ? C.success : "#C3CCDB"} />
-              <Text style={[s.checklistText, step.done && s.checklistTextDone]}>{step.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        <ExpedienteInfo expediente={expediente} />
-
-        {paso === "ficha" ? (
-          <>
-            <Card>
-              <SectionTitle title="Resultado de la visita" />
-              <View style={s.resultGrid}>
-                {RESULTADOS.map((item) => (
-                  <Pressable key={item.value} onPress={() => setResultado(item.value)} style={[s.resultChip, resultado === item.value && s.resultChipOn]}>
-                    <MaterialCommunityIcons name={item.icon as any} size={16} color={resultado === item.value ? "#fff" : C.muted} />
-                    <Text style={[s.resultChipText, resultado === item.value && s.resultChipTextOn]}>{item.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </Card>
-
-            <Card>
-              <SectionTitle title="Cuestionario al cliente" />
-              <Text style={s.qHint}>Las 3 primeras preguntas son obligatorias (verificación anti-fraude).</Text>
-              <YesNoRow label="¿Alguna vez entregó dinero al asesor por alguna razón?" value={entregoDinero} onChange={setEntregoDinero} />
-              <YesNoRow label="¿Pagó alguna comisión adicional por el desembolso?" value={pagoComision} onChange={setPagoComision} />
-              <YesNoRow label="¿Recibió el total del monto solicitado?" value={recibioMontoTotal} onChange={setRecibioMontoTotal} />
-              <YesNoRow label="¿Cónyuge tiene conocimiento del préstamo?" value={conyugeConoce} onChange={setConyugeConoce} />
-              <YesNoRow label="¿Tiene créditos paralelos?" value={creditosParalelos} onChange={setCreditosParalelos} />
-              <YesNoRow label="¿Comparte el dinero del crédito con otra persona?" value={comparteDinero} onChange={setComparteDinero} />
-              <YesNoRow label="¿Titular administra el negocio?" value={titularAdministra} onChange={setTitularAdministra} />
-              <YesNoRow label="¿Tiene microseguro?" value={tieneMicroseguro} onChange={setTieneMicroseguro} />
-              <View style={s.field}>
-                <Text style={s.qLabel}>¿Dónde realiza sus pagos?</Text>
-                <TextInput style={s.textInput} value={dondePaga} onChangeText={setDondePaga} placeholder="Agencia, agente, app, etc." />
-              </View>
-            </Card>
-
-            <Card>
-              <SectionTitle title="Comentarios" />
-              <View style={s.field}>
-                <Text style={s.qLabel}>Comentario general del negocio</Text>
-                <TextInput style={[s.textInput, s.textArea]} value={comentarioNegocio} onChangeText={setComentarioNegocio} multiline placeholder="Situación observada del negocio" />
-              </View>
-              <View style={s.field}>
-                <Text style={s.qLabel}>Comentarios finales del auditor</Text>
-                <TextInput style={[s.textInput, s.textArea]} value={comentarioAuditor} onChangeText={setComentarioAuditor} multiline placeholder="Observaciones, incidencias encontradas en la visita" />
-              </View>
-            </Card>
-
-            {error2 ? <Text style={s.error}>{error2}</Text> : null}
-            <Button title="Ficha lista — continuar a evidencias" icon="arrow-right-circle-outline" onPress={continuarAEvidencias} />
-          </>
-        ) : (
-          <>
-            <Pressable onPress={() => setPaso("ficha")} style={s.backRow}>
-              <MaterialCommunityIcons name="chevron-left" size={20} color={C.primary} />
-              <Text style={s.backRowText}>Volver a la ficha</Text>
-            </Pressable>
-
-            <Card>
-              <SectionTitle title="Evidencia fotográfica" />
-              <View style={s.photoRow}>
-                <Pressable onPress={() => takePhoto(1)} style={s.photoBox}>
-                  {photo ? <MaterialCommunityIcons name="check-circle" size={28} color={C.success} /> : <MaterialCommunityIcons name="camera-plus-outline" size={28} color={C.muted} />}
-                  <Text style={s.photoLabel}>{photo ? "Foto principal ✓" : "Foto principal"}</Text>
-                </Pressable>
-                <Pressable onPress={() => takePhoto(2)} style={s.photoBox}>
-                  {photo2 ? <MaterialCommunityIcons name="check-circle" size={28} color={C.success} /> : <MaterialCommunityIcons name="camera-plus-outline" size={28} color={C.muted} />}
-                  <Text style={s.photoLabel}>{photo2 ? "Foto adicional ✓" : "Foto adicional (opcional)"}</Text>
-                </Pressable>
-              </View>
-              <Text style={s.qHint}>Solo se aceptan fotos tomadas en el momento desde la cámara de la app.</Text>
-            </Card>
-
-            <Card>
-              <SectionTitle title="Firma del cliente" />
-              <SignaturePad key={signatureKey} onChange={setSignature} />
-            </Card>
-
-            {error2 ? <Text style={s.error}>{error2}</Text> : null}
-            <Button title={saving ? "Guardando…" : "Revisar y enviar visita"} icon="content-save-check-outline" onPress={confirmarEnvio} disabled={saving} />
-          </>
-        )}
-
-        <Modal visible={cameraSlot !== null} animationType="slide">
-          <View style={StyleSheet.absoluteFill}>
-            {cameraSlot ? <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" /> : null}
-            <View style={s.cameraControls}>
-              <Pressable onPress={() => setCameraSlot(null)} style={s.cameraCancel}>
-                <MaterialCommunityIcons name="close" size={26} color="#fff" />
-              </Pressable>
-              <Pressable onPress={capturePhoto} disabled={capturing || photoProcessing} style={s.cameraShutter}>
-                <View style={s.cameraShutterInner} />
-              </Pressable>
-              <View style={{ width: 50 }} />
-            </View>
-          </View>
-        </Modal>
-      </Screen>
+      <FichaWizard
+        asignacion={selected}
+        geo={geoConfig}
+        currentLocation={currentLocation}
+        onClose={() => setSelected(null)}
+        onSent={() => load(true)}
+      />
     );
   }
 

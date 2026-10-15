@@ -20,6 +20,12 @@ export type QueuedVisitInput = {
   idAsignacion: number | null;
   fechaHoraCheckin: string;
   resultado: string;
+  plantilla?: string;
+  estadoNegocio?: string;
+  propiedadLocal?: string;
+  otrosPasivos?: string;
+  conformidadFinanciera?: Record<string, unknown> | null;
+  firmanteDocumento?: string;
   respuestasCuestionario: Record<string, unknown>;
   comentarioNegocio: string;
   comentarioAuditor: string;
@@ -227,12 +233,18 @@ async function synchronize(tokenOverride?: string | null): Promise<SyncResult> {
             device_integrity_ok: payload.deviceIntegrityOk,
             device_id: deviceId,
             resultado: payload.resultado,
+            plantilla: payload.plantilla || undefined,
+            estado_negocio: payload.estadoNegocio || undefined,
+            propiedad_local: payload.propiedadLocal || undefined,
+            otros_pasivos: payload.otrosPasivos || undefined,
+            conformidad_financiera: payload.conformidadFinanciera || undefined,
+            firmante_documento: payload.firmanteDocumento || undefined,
             respuestas_cuestionario: payload.respuestasCuestionario,
             comentario_negocio: payload.comentarioNegocio || undefined,
             comentario_auditor: payload.comentarioAuditor || undefined,
             otros_clientes_domicilio: payload.otrosClientesDomicilio?.length ? payload.otrosClientesDomicilio : undefined,
             otros_ingresos: payload.otrosIngresos?.length ? payload.otrosIngresos : undefined,
-            firma_evidencia: payload.firma,
+            firma_evidencia: payload.firma || undefined,
             evidencia_principal_key: photo1Key,
             evidencia_adicional_key: photo2Key || undefined,
           }),
@@ -282,6 +294,12 @@ export async function enqueueVisit(input: QueuedVisitInput) {
   const encrypted = await encryptJson({
     fechaHoraCheckin: input.fechaHoraCheckin,
     resultado: input.resultado,
+    plantilla: input.plantilla,
+    estadoNegocio: input.estadoNegocio,
+    propiedadLocal: input.propiedadLocal,
+    otrosPasivos: input.otrosPasivos,
+    conformidadFinanciera: input.conformidadFinanciera,
+    firmanteDocumento: input.firmanteDocumento,
     respuestasCuestionario: input.respuestasCuestionario,
     comentarioNegocio: input.comentarioNegocio,
     comentarioAuditor: input.comentarioAuditor,
