@@ -12,8 +12,8 @@ export const C = {
 // Degradado de marca: se usa con moderación (sello, barra de avance, línea de acento).
 export const G = {
   brand: ['#C11F8C', '#7A2C9E', '#2D41C4'] as const,
-  hero: ['#16227A', '#0B1133'] as const,
-  glow: ['rgba(193,31,140,0.42)', 'rgba(193,31,140,0)'] as const,
+  hero: ['#E9EDFF', '#FFFFFF'] as const,
+  glow: ['rgba(193,31,140,0.13)', 'rgba(193,31,140,0)'] as const,
   action: ['#3A52D9', '#2D41C4'] as const,
   danger: ['#D42F4A', '#C0243E'] as const,
   soft: ['#FBE6F3', '#EFEAF8', '#EAEDFC'] as const,

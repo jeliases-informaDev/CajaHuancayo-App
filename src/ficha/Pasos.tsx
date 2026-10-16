@@ -317,7 +317,7 @@ export function PasoEvidencias({ s: st, set, onFoto, signatureKey }: { s: FichaS
 }
 
 const s = StyleSheet.create({
-  cliente: { fontSize: 17, fontWeight: "900", color: C.navy, marginBottom: 6 },
+  cliente: { fontSize: 17, fontWeight: "800", color: C.ink, marginBottom: 6 },
   mini: { fontSize: 11, color: C.muted, lineHeight: 15 },
   label: { fontSize: 12.5, fontWeight: "700", color: C.text },
   actions: { flexDirection: "row", gap: 8, marginTop: 10 },

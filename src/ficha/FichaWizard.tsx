@@ -276,17 +276,17 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
 
   return (
     <SafeAreaView edges={["bottom"]} style={st.safe}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <LinearGradient colors={[...G.hero]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[st.top, { paddingTop: Math.max(insets.top, 10) }]}>
         <View style={st.head}>
-          <Pressable onPress={salir} style={st.iconBtn} accessibilityLabel="Cerrar ficha"><MaterialCommunityIcons name="close" size={20} color="#fff" /></Pressable>
+          <Pressable onPress={salir} style={st.iconBtn} accessibilityLabel="Cerrar ficha"><MaterialCommunityIcons name="close" size={20} color={C.ink} /></Pressable>
           <View style={{ flex: 1 }}>
             <Text style={st.tipoText}>{tema.nombre.toUpperCase()}</Text>
             <Text style={st.title} numberOfLines={1}>{expediente.nombres_cliente}</Text>
             <Text style={st.sub} numberOfLines={1}>{expediente.codigo_expediente}</Text>
           </View>
           <Pressable onPress={() => setVerBase("cliente")} style={st.baseBtn} accessibilityLabel="Ver datos de la base">
-            <MaterialCommunityIcons name="database-eye-outline" size={17} color="#fff" />
+            <MaterialCommunityIcons name="database-eye-outline" size={17} color={C.ink} />
             <Text style={st.baseBtnText}>Datos base</Text>
           </Pressable>
         </View>
@@ -306,7 +306,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
             const pendiente = visto && !completo && !actualPaso && p.id !== "verificacion" && p.id !== "otros";
             return (
               <Pressable key={p.id} onPress={() => irA(i)} style={[st.stepChip, actualPaso && st.stepChipOn]}>
-                {completo && !actualPaso ? <MaterialCommunityIcons name="check" size={13} color="#7CF0C4" /> : pendiente ? <MaterialCommunityIcons name="alert-circle-outline" size={13} color="#FFC857" /> : <Text style={[st.stepNum, actualPaso && st.stepTextOn]}>{i + 1}</Text>}
+                {completo && !actualPaso ? <MaterialCommunityIcons name="check" size={13} color={C.success} /> : pendiente ? <MaterialCommunityIcons name="alert-circle-outline" size={13} color={C.warning} /> : <Text style={[st.stepNum, actualPaso && st.stepTextOn]}>{i + 1}</Text>}
                 <Text style={[st.stepText, actualPaso && st.stepTextOn]}>{p.corto}</Text>
               </Pressable>
             );
@@ -365,25 +365,25 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
 
 const st = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
-  top: { paddingBottom: 14, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  top: { paddingBottom: 14, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, borderBottomWidth: 1, borderColor: C.border },
   head: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
-  iconBtn: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.1)" },
-  tipoText: { fontSize: 10, fontWeight: "700", letterSpacing: 1, color: "#E9A6D3" },
-  title: { fontFamily: F.display, fontSize: 25, lineHeight: 28, fontWeight: "normal", color: "#fff", marginTop: 1, letterSpacing: -0.4 },
-  sub: { fontSize: 11.5, color: "#9AA5D3", fontWeight: "500" },
-  baseBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 11, height: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.1)" },
-  baseBtnText: { fontSize: 11.5, fontWeight: "600", color: "#fff" },
+  iconBtn: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.soft },
+  tipoText: { fontSize: 10, fontWeight: "700", letterSpacing: 1, color: C.magenta },
+  title: { fontFamily: F.display, fontSize: 25, lineHeight: 28, fontWeight: "normal", color: C.ink, marginTop: 1, letterSpacing: -0.4 },
+  sub: { fontSize: 11.5, color: C.muted, fontWeight: "500" },
+  baseBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 11, height: 36, borderRadius: 12, backgroundColor: C.soft },
+  baseBtnText: { fontSize: 11.5, fontWeight: "600", color: C.ink },
   progressWrap: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
-  progressTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.14)", overflow: "hidden" },
+  progressTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: C.soft, overflow: "hidden" },
   progressFill: { height: 4, borderRadius: 2 },
-  progressText: { fontSize: 11, fontWeight: "600", color: "#B6BFE0" },
+  progressText: { fontSize: 11, fontWeight: "600", color: C.muted },
   stepperScroll: { flexGrow: 0 },
   stepper: { paddingHorizontal: 14, gap: 6 },
-  stepChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.08)" },
-  stepChipOn: { backgroundColor: "#fff" },
-  stepNum: { fontSize: 11.5, fontWeight: "700", color: "#B6BFE0" },
-  stepText: { fontSize: 12, fontWeight: "600", color: "#B6BFE0" },
-  stepTextOn: { color: C.navy },
+  stepChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 32, borderRadius: 16, backgroundColor: C.soft },
+  stepChipOn: { backgroundColor: C.primary },
+  stepNum: { fontSize: 11.5, fontWeight: "700", color: C.muted },
+  stepText: { fontSize: 12, fontWeight: "600", color: C.text2 },
+  stepTextOn: { color: "#fff" },
   body: { padding: 14, gap: 12, paddingBottom: 24 },
   stepTitle: { fontFamily: F.display, fontSize: 32, lineHeight: 36, fontWeight: "normal", color: C.ink, letterSpacing: -0.3 },
   footer: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: "#fff" },

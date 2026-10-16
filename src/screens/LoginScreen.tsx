@@ -106,7 +106,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView edges={["bottom"]} style={s.safe}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.keyboard}>
         <ScrollView keyboardShouldPersistTaps="always" keyboardDismissMode="none" automaticallyAdjustKeyboardInsets={Platform.OS === "ios"} removeClippedSubviews={false} showsVerticalScrollIndicator={false} contentContainerStyle={[s.scroll, wide && s.scrollWide]}>
           {hero}
@@ -126,12 +126,12 @@ const s = StyleSheet.create({
   heroWide: { flex: 1.1, justifyContent: "space-between", paddingHorizontal: 48, paddingBottom: 48 },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   mark: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  brandName: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  brandCompany: { color: "#A8B0DD", fontSize: 12.5, fontWeight: "500", marginTop: 1 },
+  brandName: { color: C.ink, fontSize: 16, fontWeight: "600" },
+  brandCompany: { color: C.muted, fontSize: 12.5, fontWeight: "500", marginTop: 1 },
   copy: { gap: 10 },
-  headline: { fontFamily: F.displayLight, color: "#fff", fontSize: 46, lineHeight: 48, fontWeight: "normal", letterSpacing: -1.2, maxWidth: 380 },
-  headlineAccent: { fontFamily: F.italic, color: "#FF8FD0" },
-  lead: { color: "#B6BFE0", fontSize: 14.5, lineHeight: 21, maxWidth: 340 },
+  headline: { fontFamily: F.displayLight, color: C.ink, fontSize: 46, lineHeight: 48, fontWeight: "normal", letterSpacing: -1.2, maxWidth: 380 },
+  headlineAccent: { fontFamily: F.italic, color: C.magenta },
+  lead: { color: C.muted, fontSize: 14.5, lineHeight: 21, maxWidth: 340 },
   sheet: { flexGrow: 1, backgroundColor: C.surface, paddingHorizontal: 24, paddingTop: 28, paddingBottom: 28, gap: 14, marginTop: -26, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   sheetWide: { flex: 1, marginTop: 0, borderRadius: 0, justifyContent: "center", paddingHorizontal: 56, backgroundColor: C.bg },
   title: { fontFamily: F.display, fontSize: 36, lineHeight: 40, fontWeight: "normal", letterSpacing: -0.8, color: C.ink },

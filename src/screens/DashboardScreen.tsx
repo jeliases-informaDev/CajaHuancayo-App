@@ -121,16 +121,16 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
           <Text style={s.heroUnit}>{stats.total === 1 ? "caso por visitar" : "casos por visitar"}</Text>
         </View>
         <View style={s.heroBar}>
-          {stats.otros > 0 ? <View style={[s.heroBarSeg, { flex: stats.otros, backgroundColor: "#FF7AC8" }]} /> : null}
-          {stats.consumo > 0 ? <View style={[s.heroBarSeg, { flex: stats.consumo, backgroundColor: "#8EA2FF" }]} /> : null}
-          {!stats.total ? <View style={[s.heroBarSeg, { flex: 1, backgroundColor: "rgba(255,255,255,0.18)" }]} /> : null}
+          {stats.otros > 0 ? <View style={[s.heroBarSeg, { flex: stats.otros, backgroundColor: C.magenta }]} /> : null}
+          {stats.consumo > 0 ? <View style={[s.heroBarSeg, { flex: stats.consumo, backgroundColor: C.primary }]} /> : null}
+          {!stats.total ? <View style={[s.heroBarSeg, { flex: 1, backgroundColor: C.soft }]} /> : null}
         </View>
         <View style={s.heroLegend}>
-          <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: "#FF7AC8" }]} /><Text style={s.legendText}>MYPE <Text style={s.legendB}>{stats.otros}</Text></Text></View>
-          <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: "#8EA2FF" }]} /><Text style={s.legendText}>Consumo <Text style={s.legendB}>{stats.consumo}</Text></Text></View>
+          <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.magenta }]} /><Text style={s.legendText}>MYPE <Text style={s.legendB}>{stats.otros}</Text></Text></View>
+          <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.primary }]} /><Text style={s.legendText}>Consumo <Text style={s.legendB}>{stats.consumo}</Text></Text></View>
         </View>
         <View style={s.heroStats}>
-          <View style={s.heroStat}><Text style={[s.heroStatNum, stats.alta ? { color: "#FFB3C1" } : null]}>{stats.alta}</Text><Text style={s.heroStatLabel}>Prioritarios</Text></View>
+          <View style={s.heroStat}><Text style={[s.heroStatNum, stats.alta ? { color: C.danger } : null]}>{stats.alta}</Text><Text style={s.heroStatLabel}>Prioritarios</Text></View>
           <View style={s.heroStatSep} />
           <View style={s.heroStat}><Text style={s.heroStatNum}>{porEnviar}</Text><Text style={s.heroStatLabel}>Por enviar</Text></View>
         </View>
@@ -218,23 +218,23 @@ const s = StyleSheet.create({
   syncText: { fontSize: 11.5, fontWeight: "600", color: C.text2 },
   dot: { width: 7, height: 7, borderRadius: 7, backgroundColor: C.success },
   dotBusy: { backgroundColor: "#E89A0C" },
-  hero: { borderRadius: 24, padding: 22, overflow: "hidden", gap: 4, ...shadow.md },
-  heroEyebrow: { fontSize: 13, fontWeight: "600", color: "#B3BBE6" },
+  hero: { borderRadius: 24, padding: 22, overflow: "hidden", gap: 4, borderWidth: 1, borderColor: C.border, ...shadow.sm },
+  heroEyebrow: { fontSize: 13, fontWeight: "600", color: C.muted },
   heroNumRow: { flexDirection: "row", alignItems: "baseline", gap: 10, marginTop: 2 },
-  heroNum: { fontFamily: F.display, fontSize: 76, lineHeight: 80, fontWeight: "normal", color: "#fff", letterSpacing: -2 },
-  heroUnit: { fontSize: 14.5, color: "#C9D0F0", fontWeight: "500" },
+  heroNum: { fontFamily: F.display, fontSize: 76, lineHeight: 80, fontWeight: "normal", color: C.ink, letterSpacing: -2 },
+  heroUnit: { fontSize: 14.5, color: C.text2, fontWeight: "500" },
   heroBar: { flexDirection: "row", height: 8, borderRadius: 5, overflow: "hidden", gap: 3, marginTop: 14 },
   heroBarSeg: { borderRadius: 4 },
   heroLegend: { flexDirection: "row", gap: 18, marginTop: 10 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 7 },
   legendDot: { width: 8, height: 8, borderRadius: 3 },
-  legendText: { fontSize: 12.5, color: "#C9D0F0" },
-  legendB: { color: "#fff", fontWeight: "700" },
-  heroStats: { flexDirection: "row", alignItems: "center", marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.14)" },
+  legendText: { fontSize: 12.5, color: C.text2 },
+  legendB: { color: C.ink, fontWeight: "700" },
+  heroStats: { flexDirection: "row", alignItems: "center", marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.border },
   heroStat: { flex: 1, gap: 1 },
-  heroStatNum: { fontFamily: F.display, fontSize: 34, lineHeight: 36, fontWeight: "normal", color: "#fff", letterSpacing: -0.6 },
-  heroStatLabel: { fontSize: 12, color: "#AEB6E3", fontWeight: "500" },
-  heroStatSep: { width: 1, height: 38, backgroundColor: "rgba(255,255,255,0.14)", marginHorizontal: 14 },
+  heroStatNum: { fontFamily: F.display, fontSize: 34, lineHeight: 36, fontWeight: "normal", color: C.ink, letterSpacing: -0.6 },
+  heroStatLabel: { fontSize: 12, color: C.muted, fontWeight: "500" },
+  heroStatSep: { width: 1, height: 38, backgroundColor: C.border, marginHorizontal: 14 },
   next: { gap: 14 },
   nextHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   nextEyebrow: { fontSize: 13, fontWeight: "600", color: C.muted },
