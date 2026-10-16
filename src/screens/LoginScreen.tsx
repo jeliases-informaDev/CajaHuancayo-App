@@ -14,7 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
 import { Button, Input } from "../ui";
-import { C } from "../theme";
+import { C, G } from "../theme";
 import { request } from "../api";
 
 export default function LoginScreen() {
@@ -75,7 +75,7 @@ export default function LoginScreen() {
         >
           <View style={[s.root, wide && s.rootWide]}>
             <LinearGradient
-              colors={["#061839", "#0A2C70", C.primary]}
+              colors={[...G.hero]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={[s.brand, wide && s.brandWide]}
@@ -384,7 +384,7 @@ const s = StyleSheet.create({
     width: 48,
     height: 4,
     borderRadius: 4,
-    backgroundColor: C.red,
+    backgroundColor: C.magenta,
   },
   secure: { flexDirection: "row", alignItems: "center", gap: 6 },
   secureText: {

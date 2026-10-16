@@ -148,15 +148,15 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
             return (
               <Card key={expediente.id_expediente} style={s.listCard}>
                 <View style={s.listRow}>
-                  <View style={[s.avatar, { backgroundColor: isOtros ? "#FFF3E0" : "#EAF1FF" }]}>
-                    <Text style={[s.avatarText, { color: isOtros ? C.warning : C.primary }]}>{initialsOf(expediente.nombres_cliente)}</Text>
+                  <View style={[s.avatar, { backgroundColor: isOtros ? "#FCE8F3" : "#E9EEFC" }]}>
+                    <Text style={[s.avatarText, { color: isOtros ? C.magenta : C.primary }]}>{initialsOf(expediente.nombres_cliente)}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.listTitle} numberOfLines={1}>{expediente.nombres_cliente}</Text>
                     <View style={s.chipRow}>
-                      <View style={[s.typeChip, { backgroundColor: isOtros ? "#FFF3E0" : "#EAF1FF" }]}>
-                        <MaterialCommunityIcons name={isOtros ? "store-outline" : "account-cash-outline"} size={12} color={isOtros ? C.warning : C.primary} />
-                        <Text style={[s.typeChipText, { color: isOtros ? C.warning : C.primary }]}>{expediente.tipo_credito}</Text>
+                      <View style={[s.typeChip, { backgroundColor: isOtros ? "#FCE8F3" : "#E9EEFC" }]}>
+                        <MaterialCommunityIcons name={isOtros ? "store-outline" : "account-cash-outline"} size={12} color={isOtros ? C.magenta : C.primary} />
+                        <Text style={[s.typeChipText, { color: isOtros ? C.magenta : C.primary }]}>{expediente.tipo_credito}</Text>
                       </View>
                       <Text style={s.listCode}>{expediente.codigo_expediente}</Text>
                     </View>
@@ -185,8 +185,8 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
           <Pressable key={item.id_asignacion} onPress={() => setSelected(item)} style={({ pressed }) => pressed && s.listCardPressed}>
             <Card style={StyleSheet.flatten([s.listCard, { borderLeftColor: accent, borderLeftWidth: 4 }])}>
               <View style={s.listRow}>
-                <View style={[s.avatar, { backgroundColor: isOtros ? "#FFF3E0" : "#EAF1FF" }]}>
-                  <Text style={[s.avatarText, { color: isOtros ? C.warning : C.primary }]}>{initialsOf(item.expediente.nombres_cliente)}</Text>
+                <View style={[s.avatar, { backgroundColor: isOtros ? "#FCE8F3" : "#E9EEFC" }]}>
+                  <Text style={[s.avatarText, { color: isOtros ? C.magenta : C.primary }]}>{initialsOf(item.expediente.nombres_cliente)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={s.listHeader}>
@@ -194,9 +194,9 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
                     <Badge status={item.prioridad === "ALTA" ? "NO_ENCONTRADO" : item.prioridad === "BAJA" ? "INACTIVO" : "PENDIENTE"} label={item.prioridad} />
                   </View>
                   <View style={s.chipRow}>
-                    <View style={[s.typeChip, { backgroundColor: isOtros ? "#FFF3E0" : "#EAF1FF" }]}>
-                      <MaterialCommunityIcons name={isOtros ? "store-outline" : "account-cash-outline"} size={12} color={isOtros ? C.warning : C.primary} />
-                      <Text style={[s.typeChipText, { color: isOtros ? C.warning : C.primary }]}>{item.expediente.tipo_credito}</Text>
+                    <View style={[s.typeChip, { backgroundColor: isOtros ? "#FCE8F3" : "#E9EEFC" }]}>
+                      <MaterialCommunityIcons name={isOtros ? "store-outline" : "account-cash-outline"} size={12} color={isOtros ? C.magenta : C.primary} />
+                      <Text style={[s.typeChipText, { color: isOtros ? C.magenta : C.primary }]}>{item.expediente.tipo_credito}</Text>
                     </View>
                     <Text style={s.listCode}>{item.expediente.codigo_expediente}</Text>
                   </View>

@@ -16,7 +16,7 @@ import {
 } from "react-native-safe-area-context";
 import NetInfo from "@react-native-community/netinfo";
 import { AuthProvider, useAuth } from "./src/AuthContext";
-import { C } from "./src/theme";
+import { C, G } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
 import MapScreen from "./src/screens/MapScreen";
@@ -142,7 +142,7 @@ function Shell() {
               accessibilityState={{ selected }}
               style={({ pressed }) => [s.navItem, pressed && s.navItemPressed]}
             >
-              {selected ? <LinearGradient colors={[C.primary2, C.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.iconWrap, s.iconWrapActive]}>
+              {selected ? <LinearGradient colors={[...G.brand]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.iconWrap, s.iconWrapActive]}>
                 <MaterialCommunityIcons
                   name={item.active}
                   size={23}
@@ -181,7 +181,7 @@ const s = StyleSheet.create({
   },
   loadingText: { color: C.muted, fontWeight: "700" },
   offline: {
-    backgroundColor: C.redDark,
+    backgroundColor: C.navy2,
     paddingBottom: 7,
     paddingHorizontal: 12,
     alignItems: "center",

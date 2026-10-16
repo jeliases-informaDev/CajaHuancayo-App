@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { C, statusColors } from "./theme";
+import { LinearGradient } from "expo-linear-gradient";
+import { C, G, statusColors } from "./theme";
 
 export function Screen({
   children,
@@ -54,7 +55,7 @@ export function Header({
 }) {
   return (
     <View style={s.header}>
-      <View style={s.headerMark} />
+      <LinearGradient colors={[...G.brand]} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={s.headerMark} />
       <View style={s.headerText}>
         <Text style={s.title}>{title}</Text>
         {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
@@ -85,27 +86,24 @@ export function Button({
   disabled?: boolean;
   icon?: any;
 }) {
+  const contenido = (
+    <>
+      {icon ? <MaterialCommunityIcons name={icon} size={19} color={kind === "ghost" ? C.navy2 : "#fff"} /> : null}
+      <Text style={[s.buttonText, kind === "ghost" && s.buttonGhostText]}>{title}</Text>
+    </>
+  );
   return (
     <Pressable
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [
-        s.button,
-        kind === "ghost" && s.buttonGhost,
-        kind === "danger" && s.buttonDanger,
-        (pressed || disabled) && s.pressed,
-      ]}
+      accessibilityRole="button"
+      style={({ pressed }) => [s.buttonWrap, kind === "ghost" && s.buttonGhost, kind === "danger" && s.buttonDanger, (pressed || disabled) && s.pressed]}
     >
-      {icon ? (
-        <MaterialCommunityIcons
-          name={icon}
-          size={19}
-          color={kind === "ghost" ? C.primary : "#fff"}
-        />
-      ) : null}
-      <Text style={[s.buttonText, kind === "ghost" && s.buttonGhostText]}>
-        {title}
-      </Text>
+      {kind === "primary" ? (
+        <LinearGradient colors={[...G.brand]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={s.button}>{contenido}</LinearGradient>
+      ) : (
+        <View style={s.button}>{contenido}</View>
+      )}
     </Pressable>
   );
 }
@@ -175,7 +173,7 @@ export function Empty({
         <MaterialCommunityIcons
           name="database-outline"
           size={30}
-          color={C.primary}
+          color={C.violet}
         />
       </View>
       <Text style={s.emptyTitle}>{title}</Text>
@@ -222,13 +220,13 @@ const s = StyleSheet.create({
     gap: 11,
     marginBottom: 2,
   },
-  headerMark: { width: 4, height: 38, borderRadius: 5, backgroundColor: C.red },
+  headerMark: { width: 5, height: 40, borderRadius: 5 },
   headerText: { flex: 1 },
   title: {
     fontSize: 27,
     lineHeight: 32,
     fontWeight: "900",
-    color: C.text,
+    color: C.navy,
     letterSpacing: -0.7,
   },
   subtitle: { fontSize: 13, lineHeight: 19, color: C.muted, marginTop: 2 },
@@ -236,38 +234,35 @@ const s = StyleSheet.create({
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 16,
     shadowColor: C.navy,
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 3,
   },
+  buttonWrap: {
+    borderRadius: 16,
+    shadowColor: C.violet,
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
   button: {
-    minHeight: 50,
-    borderRadius: 14,
-    backgroundColor: C.primary,
+    minHeight: 52,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     flexDirection: "row",
     gap: 8,
-    shadowColor: C.primary,
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
   },
-  buttonGhost: {
-    backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    shadowOpacity: 0,
-  },
-  buttonDanger: { backgroundColor: C.red },
-  buttonText: { color: "#fff", fontSize: 15, fontWeight: "800" },
-  buttonGhostText: { color: C.primary },
+  buttonGhost: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, shadowOpacity: 0, elevation: 0 },
+  buttonDanger: { backgroundColor: C.red, shadowColor: C.red },
+  buttonText: { color: "#fff", fontSize: 15, fontWeight: "800", letterSpacing: 0.1 },
+  buttonGhostText: { color: C.navy2 },
   pressed: { opacity: 0.68, transform: [{ scale: 0.99 }] },
   field: { gap: 6 },
   label: {
@@ -314,7 +309,7 @@ const s = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 18,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#EEE6FA",
     alignItems: "center",
     justifyContent: "center",
   },

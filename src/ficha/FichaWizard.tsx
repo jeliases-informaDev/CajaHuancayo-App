@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, BackHandler, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ScreenCapture from "expo-screen-capture";
 import NetInfo from "@react-native-community/netinfo";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { C } from "../theme";
+import { C, G } from "../theme";
 import { getAuditVisitFix } from "../useAuditorLocation";
 import { checkDeviceIntegrity } from "../deviceIntegrity";
 import { cacheGet, cacheSet, createOfflineVisitId, enqueueVisit, syncPendingVisits } from "../offlineSync";
@@ -53,6 +55,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
   const [capturing, setCapturing] = useState(false);
   const [signatureKey, setSignatureKey] = useState(0);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const insets = useSafeAreaInsets();
   const cameraRef = useRef<CameraView>(null);
   const scrollRef = useRef<ScrollView>(null);
   const mounted = useRef(true);
@@ -272,37 +275,40 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
   const actual = pasos[idx];
 
   return (
-    <SafeAreaView edges={["top", "bottom"]} style={st.safe}>
-      <View style={st.head}>
-        <Pressable onPress={salir} style={st.iconBtn} accessibilityLabel="Cerrar ficha"><MaterialCommunityIcons name="close" size={20} color={C.muted} /></Pressable>
-        <View style={{ flex: 1 }}>
-          <View style={[st.tipoPill, { backgroundColor: tema.suave }]}>
-            <MaterialCommunityIcons name={tema.icono as any} size={12} color={tema.color} />
-            <Text style={[st.tipoText, { color: tema.color }]}>{tema.nombre.toUpperCase()}</Text>
+    <SafeAreaView edges={["bottom"]} style={st.safe}>
+      <StatusBar style="light" />
+      <LinearGradient colors={[...G.hero]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[st.top, { paddingTop: Math.max(insets.top, 10) }]}>
+        <View style={st.head}>
+          <Pressable onPress={salir} style={st.iconBtn} accessibilityLabel="Cerrar ficha"><MaterialCommunityIcons name="close" size={20} color="#fff" /></Pressable>
+          <View style={{ flex: 1 }}>
+            <View style={st.tipoPill}>
+              <MaterialCommunityIcons name={tema.icono as any} size={12} color="#fff" />
+              <Text style={st.tipoText}>{tema.nombre.toUpperCase()}</Text>
+            </View>
+            <Text style={st.title} numberOfLines={1}>{expediente.nombres_cliente}</Text>
+            <Text style={st.sub} numberOfLines={1}>{expediente.codigo_expediente}</Text>
           </View>
-          <Text style={st.title} numberOfLines={1}>{expediente.nombres_cliente}</Text>
-          <Text style={st.sub} numberOfLines={1}>{expediente.codigo_expediente}</Text>
+          <Pressable onPress={() => setVerBase("cliente")} style={st.baseBtn} accessibilityLabel="Ver datos de la base">
+            <MaterialCommunityIcons name="database-eye-outline" size={18} color="#fff" />
+            <Text style={st.baseBtnText}>Base</Text>
+          </Pressable>
         </View>
-        <Pressable onPress={() => setVerBase("cliente")} style={st.baseBtn} accessibilityLabel="Ver datos de la base">
-          <MaterialCommunityIcons name="database-eye-outline" size={18} color={C.info} />
-          <Text style={st.baseBtnText}>Base</Text>
-        </Pressable>
-      </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.stepperScroll} contentContainerStyle={st.stepper}>
-        {pasos.map((p, i) => {
-          const actualPaso = i === idx;
-          const visto = visitados.has(p.id);
-          const completo = visto && pasoCompleto(p.id, s, plantilla);
-          const pendiente = visto && !completo && !actualPaso && p.id !== "verificacion" && p.id !== "otros";
-          return (
-            <Pressable key={p.id} onPress={() => irA(i)} style={[st.stepChip, actualPaso && { backgroundColor: tema.color, borderColor: tema.color }]}>
-              {completo && !actualPaso ? <MaterialCommunityIcons name="check-circle" size={14} color={C.success} /> : pendiente ? <MaterialCommunityIcons name="alert-circle" size={14} color={C.warning} /> : <Text style={[st.stepNum, actualPaso && { color: "#fff" }]}>{i + 1}</Text>}
-              <Text style={[st.stepText, actualPaso && { color: "#fff" }]}>{p.corto}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.stepperScroll} contentContainerStyle={st.stepper}>
+          {pasos.map((p, i) => {
+            const actualPaso = i === idx;
+            const visto = visitados.has(p.id);
+            const completo = visto && pasoCompleto(p.id, s, plantilla);
+            const pendiente = visto && !completo && !actualPaso && p.id !== "verificacion" && p.id !== "otros";
+            return (
+              <Pressable key={p.id} onPress={() => irA(i)} style={[st.stepChip, actualPaso && st.stepChipOn]}>
+                {completo && !actualPaso ? <MaterialCommunityIcons name="check-circle" size={14} color="#7CF0C4" /> : pendiente ? <MaterialCommunityIcons name="alert-circle" size={14} color="#FFC857" /> : <Text style={[st.stepNum, actualPaso && st.stepTextOn]}>{i + 1}</Text>}
+                <Text style={[st.stepText, actualPaso && st.stepTextOn]}>{p.corto}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </LinearGradient>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.body}>
@@ -330,7 +336,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
         <Pressable
           onPress={ultimo ? confirmarEnvio : () => irA(idx + 1)}
           disabled={saving}
-          style={[st.nextBtn, { backgroundColor: ultimo ? C.success : tema.color }, saving && { opacity: 0.6 }]}
+          style={[st.nextBtn, { backgroundColor: ultimo ? C.success : C.navy2 }, saving && { opacity: 0.6 }]}
         >
           <Text style={st.nextText}>{saving ? "Guardando…" : ultimo ? "Revisar y enviar" : `Continuar · ${pasos[idx + 1].corto}`}</Text>
           <MaterialCommunityIcons name={ultimo ? "send-check-outline" : "chevron-right"} size={20} color="#fff" />
@@ -355,19 +361,22 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
 
 const st = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
-  head: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 8 },
-  iconBtn: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "#E8EEF8" },
-  tipoPill: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  tipoText: { fontSize: 9.5, fontWeight: "900", letterSpacing: 0.4 },
-  title: { fontSize: 16, fontWeight: "900", color: C.navy, marginTop: 3 },
-  sub: { fontSize: 11, color: C.muted, fontWeight: "600" },
-  baseBtn: { alignItems: "center", justifyContent: "center", paddingHorizontal: 10, paddingVertical: 7, borderRadius: 12, backgroundColor: "#EAF1FF", gap: 1 },
-  baseBtnText: { fontSize: 10, fontWeight: "900", color: C.info },
+  top: { borderBottomLeftRadius: 24, borderBottomRightRadius: 24, paddingBottom: 14, overflow: "hidden" },
+  head: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 12 },
+  iconBtn: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.14)" },
+  tipoPill: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.16)" },
+  tipoText: { fontSize: 9.5, fontWeight: "900", letterSpacing: 0.6, color: "#fff" },
+  title: { fontSize: 17, fontWeight: "900", color: "#fff", marginTop: 4, letterSpacing: -0.3 },
+  sub: { fontSize: 11, color: "#C3CDF6", fontWeight: "700" },
+  baseBtn: { alignItems: "center", justifyContent: "center", paddingHorizontal: 11, paddingVertical: 7, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.16)", gap: 1 },
+  baseBtnText: { fontSize: 10, fontWeight: "900", color: "#fff" },
   stepperScroll: { flexGrow: 0 },
-  stepper: { paddingHorizontal: 14, gap: 8, paddingBottom: 8 },
-  stepChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff" },
-  stepNum: { fontSize: 11.5, fontWeight: "900", color: C.muted },
-  stepText: { fontSize: 12, fontWeight: "800", color: C.muted },
+  stepper: { paddingHorizontal: 14, gap: 8 },
+  stepChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: "rgba(255,255,255,0.22)", backgroundColor: "rgba(255,255,255,0.10)" },
+  stepChipOn: { backgroundColor: "#fff", borderColor: "#fff" },
+  stepNum: { fontSize: 11.5, fontWeight: "900", color: "#D7DEFC" },
+  stepText: { fontSize: 12, fontWeight: "800", color: "#D7DEFC" },
+  stepTextOn: { color: C.navy },
   body: { padding: 14, gap: 12, paddingBottom: 24 },
   stepTitle: { fontSize: 12, fontWeight: "900", color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 },
   footer: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: "#fff" },

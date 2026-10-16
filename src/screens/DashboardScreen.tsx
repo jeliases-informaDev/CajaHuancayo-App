@@ -4,7 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
 import { Badge, Card, Empty, Header, Loading, Screen } from "../ui";
-import { C } from "../theme";
+import { C, G } from "../theme";
 import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
 
 const CACHE_KEY_MUESTRA = "mias_v1";
@@ -78,7 +78,7 @@ export default function DashboardScreen({ refreshRevision = 0 }: { refreshRevisi
   return (
     <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[C.primary]} />}>
       <Header title="Mi jornada" subtitle="Auditoría de visitas · Caja Huancayo" />
-      <LinearGradient colors={[C.navy, C.navy2, C.primary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
+      <LinearGradient colors={[...G.hero]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
         <View style={s.heroGlow} />
         <Text style={s.hello}>HOLA, {(user?.nombres || user?.username || "AUDITOR").toUpperCase()}</Text>
         <Text style={s.title}>Tu muestra asignada,{"\n"}lista para verificar.</Text>

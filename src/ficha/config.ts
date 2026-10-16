@@ -18,7 +18,7 @@ export const PASOS: Record<Plantilla, Paso[]> = {
 };
 
 export const TEMA: Record<Plantilla, { nombre: string; detalle: string; color: string; suave: string; icono: string }> = {
-  MYPE_V1: { nombre: "Ficha MYPE", detalle: "Crédito Otros · verificas negocio y evaluación", color: C.warning, suave: "#FFF3E0", icono: "store-outline" },
+  MYPE_V1: { nombre: "Ficha MYPE", detalle: "Crédito Otros · verificas negocio y evaluación", color: C.magenta, suave: "#FCE8F3", icono: "store-outline" },
   CONSUMO_V1: { nombre: "Ficha Consumo", detalle: "Crédito de consumo · verificación del cliente", color: C.primary, suave: "#EAF1FF", icono: "account-cash-outline" },
 };
 
