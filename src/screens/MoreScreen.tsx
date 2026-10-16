@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
-import { Button, Card, Header, Screen } from "../ui";
-import { C } from "../theme";
+import { Avatar, Button, Card, Header, Screen } from "../ui";
+import { C, shadow } from "../theme";
 import { discardRejectedVisit, lastSyncError, pendingVisitCount, rejectedVisits, syncPendingVisits, type RejectedVisit } from "../offlineSync";
 
 const advisorDisplayName = (user: {
@@ -71,9 +71,9 @@ export default function MoreScreen() {
   const showFieldHelp = () => Alert.alert("Visita de auditoría", "Mantén activa la ubicación durante la visita. Antes de guardar, verifica la fotografía, la firma del cliente y responde el cuestionario completo.");
 
   return <Screen>
-    <Header title="Perfil" subtitle="Cuenta y sincronización" />
+    <Header title="Perfil" subtitle="Cuenta, dispositivo y sincronización" />
     <View style={s.profile}>
-      <View style={s.avatar}><Text style={s.letter}>{displayName[0].toUpperCase()}</Text></View>
+      <Avatar name={displayName} size={60} />
       <View style={{ flex: 1 }}>
         <Text style={s.name}>{displayName}</Text>
         <Text style={s.username}>@{user?.username}</Text>
@@ -122,10 +122,8 @@ export default function MoreScreen() {
 }
 
 const s = StyleSheet.create({
-  profile: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 16 },
-  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: C.navy, alignItems: "center", justifyContent: "center" },
-  letter: { fontSize: 22, fontWeight: "700", color: "#fff" },
-  name: { fontSize: 18, fontWeight: "700", color: C.ink, letterSpacing: -0.2 },
+  profile: { flexDirection: "row", alignItems: "center", gap: 16, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 20, padding: 18, ...shadow.sm },
+  name: { fontSize: 19, fontWeight: "700", color: C.ink, letterSpacing: -0.2 },
   username: { color: C.muted, fontSize: 12.5, fontWeight: "500", marginTop: 2 },
   roleBadge: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: C.successBg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginTop: 8 },
   roleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.success },

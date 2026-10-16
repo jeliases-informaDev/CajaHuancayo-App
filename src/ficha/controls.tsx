@@ -113,8 +113,8 @@ export const controlStyles = StyleSheet.create({
 });
 
 const s = StyleSheet.create({
-  baseCard: { backgroundColor: C.surface2, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, gap: 2 },
-  campoCard: { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: C.border, borderLeftWidth: 3, padding: 14, gap: 2 },
+  baseCard: { backgroundColor: C.surface2, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 16, gap: 2 },
+  campoCard: { backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: C.border, borderLeftWidth: 3, padding: 16, gap: 2 },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
   baseTitle: { flex: 1, fontSize: 13.5, fontWeight: "700", color: C.ink },
   baseTag: { fontSize: 10, fontWeight: "600", color: C.muted },
@@ -127,17 +127,17 @@ const s = StyleSheet.create({
   qRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, gap: 10, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   qLabel: { fontSize: 13, color: C.text, flex: 1, fontWeight: "500", lineHeight: 18 },
   qButtons: { flexDirection: "row", gap: 8 },
-  qBtn: { width: 52, height: 44, borderRadius: 10, borderWidth: 1, borderColor: C.borderStrong, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
+  qBtn: { width: 54, height: 46, borderRadius: 12, borderWidth: 1, borderColor: C.borderStrong, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
   qBtnYesOn: { backgroundColor: C.success, borderColor: C.success },
   qBtnNoOn: { backgroundColor: C.danger, borderColor: C.danger },
   qBtnText: { fontSize: 11.5, fontWeight: "900", color: C.muted },
   qBtnTextOn: { color: "#fff" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  chip: { paddingHorizontal: 14, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: C.borderStrong, backgroundColor: "#fff" },
+  chip: { paddingHorizontal: 15, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: C.borderStrong, backgroundColor: "#fff" },
   chipText: { fontSize: 13, fontWeight: "600", color: C.text2 },
   field: { gap: 6, marginTop: 8 },
-  textInput: { minHeight: 46, borderWidth: 1, borderColor: C.borderStrong, borderRadius: 10, paddingHorizontal: 12, fontSize: 13.5, color: C.text, backgroundColor: "#fff" },
+  textInput: { minHeight: 48, borderWidth: 1, borderColor: C.borderStrong, borderRadius: 12, paddingHorizontal: 12, fontSize: 13.5, color: C.text, backgroundColor: "#fff" },
   textArea: { minHeight: 84, paddingTop: 10, textAlignVertical: "top" },
-  callout: { flexDirection: "row", gap: 8, padding: 11, borderRadius: 10, alignItems: "flex-start" },
+  callout: { flexDirection: "row", gap: 8, padding: 12, borderRadius: 14, alignItems: "flex-start" },
   calloutText: { flex: 1, fontSize: 12.5, fontWeight: "500", lineHeight: 18 },
 });

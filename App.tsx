@@ -15,8 +15,9 @@ import {
 } from "react-native-safe-area-context";
 import NetInfo from "@react-native-community/netinfo";
 import { AuthProvider, useAuth } from "./src/AuthContext";
-import { useFonts, Newsreader_400Regular, Newsreader_500Medium } from "@expo-google-fonts/newsreader";
-import { C } from "./src/theme";
+import { useFonts, InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic } from "@expo-google-fonts/instrument-serif";
+import { LinearGradient } from "expo-linear-gradient";
+import { C, G } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
 import MapScreen from "./src/screens/MapScreen";
@@ -47,7 +48,7 @@ const tabs: any[] = [
 ];
 function Shell() {
   const { token, loading, api, offlineSession } = useAuth();
-  const [fontsLoaded, fontsError] = useFonts({ Newsreader_400Regular, Newsreader_500Medium });
+  const [fontsLoaded, fontsError] = useFonts({ InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic });
   const [tab, setTab] = useState<Tab>("principal");
   const [online, setOnline] = useState(true);
   const [revision, setRevision] = useState(0);
@@ -75,8 +76,10 @@ function Shell() {
   if (loading || (!fontsLoaded && !fontsError))
     return (
       <View style={s.loading}>
-        <MaterialCommunityIcons name="clipboard-check-outline" size={42} color={C.primary} />
-        <ActivityIndicator size="large" color={C.primary} />
+        <LinearGradient colors={[...G.brand]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.loadingMark}>
+          <MaterialCommunityIcons name="map-marker-check" size={34} color="#fff" />
+        </LinearGradient>
+        <ActivityIndicator size="small" color={C.primary} />
         <Text style={s.loadingText}>Preparando la app de auditoría</Text>
       </View>
     );
@@ -139,8 +142,9 @@ function Shell() {
               accessibilityState={{ selected }}
               style={({ pressed }) => [s.navItem, pressed && s.navItemPressed]}
             >
-              <View style={[s.navIndicator, selected && s.navIndicatorOn]} />
-              <MaterialCommunityIcons name={selected ? item.active : item.icon} size={24} color={selected ? C.primary : C.muted} />
+              <View style={[s.navPill, selected && s.navPillOn]}>
+                <MaterialCommunityIcons name={selected ? item.active : item.icon} size={23} color={selected ? C.primary : C.muted} />
+              </View>
               <Text style={[s.navLabel, selected && s.navLabelActive]}>{item.label}</Text>
             </Pressable>
           );
@@ -169,7 +173,8 @@ const s = StyleSheet.create({
     gap: 15,
     backgroundColor: C.bg,
   },
-  loadingText: { color: C.muted, fontWeight: "700" },
+  loadingMark: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 6 },
+  loadingText: { color: C.muted, fontWeight: "600" },
   offline: {
     backgroundColor: C.navy,
     paddingBottom: 7,
@@ -182,11 +187,11 @@ const s = StyleSheet.create({
   locationWarning: { backgroundColor: C.warning, paddingBottom: 7, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7 },
   locationWarningPressed: { opacity: 0.82 },
   offlineText: { color: "#fff", fontWeight: "800", fontSize: 11 },
-  nav: { backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border, flexDirection: "row", paddingTop: 0 },
-  navItem: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 3, paddingTop: 9, paddingBottom: 4 },
+  nav: { backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border, flexDirection: "row", paddingTop: 6, shadowColor: "#0E1332", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -3 }, elevation: 8 },
+  navItem: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 2, paddingTop: 2, paddingBottom: 4 },
   navItemPressed: { opacity: 0.6 },
-  navIndicator: { position: "absolute", top: 0, width: 28, height: 3, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, backgroundColor: "transparent" },
-  navIndicatorOn: { backgroundColor: C.magenta },
-  navLabel: { fontSize: 10.5, lineHeight: 13, color: C.muted, fontWeight: "600" },
+  navPill: { width: 54, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  navPillOn: { backgroundColor: C.blue50 },
+  navLabel: { fontSize: 11, lineHeight: 14, color: C.muted, fontWeight: "600" },
   navLabelActive: { color: C.primary, fontWeight: "700" },
 });

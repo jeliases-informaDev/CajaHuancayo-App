@@ -277,7 +277,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
   return (
     <SafeAreaView edges={["bottom"]} style={st.safe}>
       <StatusBar style="light" />
-      <View style={[st.top, { paddingTop: Math.max(insets.top, 10) }]}>
+      <LinearGradient colors={[...G.hero]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[st.top, { paddingTop: Math.max(insets.top, 10) }]}>
         <View style={st.head}>
           <Pressable onPress={salir} style={st.iconBtn} accessibilityLabel="Cerrar ficha"><MaterialCommunityIcons name="close" size={20} color="#fff" /></Pressable>
           <View style={{ flex: 1 }}>
@@ -312,7 +312,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
             );
           })}
         </ScrollView>
-      </View>
+      </LinearGradient>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.body}>
@@ -365,11 +365,11 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
 
 const st = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
-  top: { backgroundColor: C.navy, paddingBottom: 12 },
+  top: { paddingBottom: 14, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
   head: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
   iconBtn: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.1)" },
   tipoText: { fontSize: 10, fontWeight: "700", letterSpacing: 1, color: "#E9A6D3" },
-  title: { fontSize: 17, fontWeight: "700", color: "#fff", marginTop: 1, letterSpacing: -0.2 },
+  title: { fontFamily: F.display, fontSize: 25, lineHeight: 28, fontWeight: "normal", color: "#fff", marginTop: 1, letterSpacing: -0.4 },
   sub: { fontSize: 11.5, color: "#9AA5D3", fontWeight: "500" },
   baseBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 11, height: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.1)" },
   baseBtnText: { fontSize: 11.5, fontWeight: "600", color: "#fff" },
@@ -385,11 +385,11 @@ const st = StyleSheet.create({
   stepText: { fontSize: 12, fontWeight: "600", color: "#B6BFE0" },
   stepTextOn: { color: C.navy },
   body: { padding: 14, gap: 12, paddingBottom: 24 },
-  stepTitle: { fontFamily: F.display, fontSize: 26, lineHeight: 31, fontWeight: "normal", color: C.ink, letterSpacing: -0.3 },
-  footer: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: "#fff" },
+  stepTitle: { fontFamily: F.display, fontSize: 32, lineHeight: 36, fontWeight: "normal", color: C.ink, letterSpacing: -0.3 },
+  footer: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: "#fff" },
   backBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 12 },
   backText: { fontSize: 14, fontWeight: "600", color: C.text2 },
-  nextBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 48, borderRadius: 10 },
+  nextBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 52, borderRadius: 14 },
   nextText: { fontSize: 14.5, fontWeight: "600", color: "#fff" },
   cameraControls: { position: "absolute", bottom: 40, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 30 },
   cameraCancel: { width: 50, height: 50, borderRadius: 25, backgroundColor: "#00000080", alignItems: "center", justifyContent: "center" },

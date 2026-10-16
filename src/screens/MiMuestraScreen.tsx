@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
-import { Badge, Empty, Header, Loading, Screen } from "../ui";
-import { C } from "../theme";
+import { Avatar, Badge, Empty, Header, Loading, Screen, Seg } from "../ui";
+import { C, shadow } from "../theme";
 import FichaWizard from "../ficha/FichaWizard";
 import { cacheGet, cacheSet } from "../offlineSync";
 
@@ -136,7 +136,6 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   };
   const visiblesMias = asignaciones.filter((a) => pasaFiltro(a.expediente, a.prioridad));
   const visiblesDisp = disponibles.filter((e) => pasaFiltro(e));
-  const prioridadColor = (p: string) => (p === "ALTA" ? C.danger : p === "BAJA" ? C.borderStrong : C.warning);
   const distanciaA = (exp: any) => {
     if (!currentLocation || exp.latitud == null) return null;
     const lat = Number(exp.latitud);
@@ -169,13 +168,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     <Screen refreshControl={<RefreshControl refreshing={vista === "mia" ? refreshing : loadingDisponibles} onRefresh={() => (vista === "mia" ? load(true) : loadDisponibles())} colors={[C.primary]} />}>
       <Header title="Mi muestra" subtitle={vista === "mia" ? `${visiblesMias.length} de ${asignaciones.length} caso(s)` : `${visiblesDisp.length} disponible(s) en tu zona`} />
 
-      <View style={s.tabs}>
-        {([["mia", "Asignados"], ["disponibles", "Disponibles en tu zona"]] as const).map(([id, label]) => (
-          <Pressable key={id} onPress={() => setVista(id)} style={[s.tab, vista === id && s.tabOn]}>
-            <Text style={[s.tabText, vista === id && s.tabTextOn]}>{label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <Seg options={[{ id: "mia", label: "Asignados" }, { id: "disponibles", label: "Disponibles en tu zona" }]} value={vista} onChange={setVista} />
 
       <View style={s.search}>
         <MaterialCommunityIcons name="magnify" size={19} color={C.muted} />
@@ -199,6 +192,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
             const claiming = claimingId === exp.id_expediente;
             return (
               <View key={exp.id_expediente} style={s.row}>
+                <Avatar name={exp.nombres_cliente} size={44} />
                 <View style={s.rowBody}>
                   <View style={s.rowTop}><Text style={s.name} numberOfLines={1}>{exp.nombres_cliente}</Text><Etiqueta exp={exp} /></View>
                   <Text style={s.meta} numberOfLines={1}>{exp.codigo_expediente} · {exp.distrito || "Sin distrito"}</Text>
@@ -222,7 +216,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
             const dist = distanciaA(exp);
             return (
               <Pressable key={item.id_asignacion} onPress={() => setSelected(item)} style={({ pressed }) => [s.row, pressed && s.rowPressed]}>
-                <View style={[s.bar, { backgroundColor: prioridadColor(item.prioridad) }]} />
+                <Avatar name={exp.nombres_cliente} size={44} />
                 <View style={s.rowBody}>
                   <View style={s.rowTop}><Text style={s.name} numberOfLines={1}>{exp.nombres_cliente}</Text><Etiqueta exp={exp} /></View>
                   <Text style={s.meta} numberOfLines={1}>{exp.codigo_expediente} · {exp.distrito || "Sin distrito"}</Text>
@@ -237,7 +231,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
                     </Pressable>
                   </View>
                 </View>
-                <MaterialCommunityIcons name="chevron-right" size={20} color={C.borderStrong} />
+                <MaterialCommunityIcons name="chevron-right" size={22} color={C.placeholder} />
               </Pressable>
             );
           })}
@@ -248,25 +242,19 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
 }
 
 const s = StyleSheet.create({
-  tabs: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border, gap: 22 },
-  tab: { paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: "transparent", marginBottom: -1 },
-  tabOn: { borderBottomColor: C.primary },
-  tabText: { fontSize: 13.5, fontWeight: "500", color: C.muted },
-  tabTextOn: { color: C.ink, fontWeight: "700" },
-  search: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 46, borderWidth: 1, borderColor: C.borderStrong, borderRadius: 10, paddingHorizontal: 12, backgroundColor: "#fff" },
+  search: { flexDirection: "row", alignItems: "center", gap: 9, minHeight: 50, borderWidth: 1, borderColor: C.borderStrong, borderRadius: 14, paddingHorizontal: 14, backgroundColor: "#fff" },
   searchInput: { flex: 1, fontSize: 14, color: C.ink, paddingVertical: 10 },
   filters: { gap: 8, paddingRight: 8 },
-  filter: { paddingHorizontal: 14, height: 34, borderRadius: 17, borderWidth: 1, borderColor: C.borderStrong, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  filter: { paddingHorizontal: 15, height: 36, borderRadius: 18, borderWidth: 1, borderColor: C.borderStrong, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
   filterOn: { backgroundColor: C.blue50, borderColor: C.primary2 },
   filterText: { fontSize: 12.5, fontWeight: "500", color: C.text2 },
   filterTextOn: { color: C.primary, fontWeight: "700" },
   hint: { fontSize: 12, color: C.muted, lineHeight: 17 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, borderRadius: 14, paddingRight: 12, overflow: "hidden" },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, ...shadow.sm },
   rowPressed: { backgroundColor: C.surface2 },
-  bar: { alignSelf: "stretch", width: 4 },
-  rowBody: { flex: 1, paddingVertical: 12, paddingLeft: 12, gap: 2 },
+  rowBody: { flex: 1, gap: 2 },
   rowTop: { flexDirection: "row", alignItems: "center", gap: 8 },
-  name: { flex: 1, fontSize: 15, fontWeight: "700", color: C.ink },
+  name: { flex: 1, fontSize: 15.5, fontWeight: "700", color: C.ink },
   tag: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   tagText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
   meta: { fontSize: 12, color: C.text2, fontWeight: "500" },
@@ -276,6 +264,6 @@ const s = StyleSheet.create({
   distText: { fontSize: 12, fontWeight: "600", color: C.primary },
   goto: { flexDirection: "row", alignItems: "center", gap: 4 },
   gotoText: { fontSize: 12, fontWeight: "600", color: C.primary },
-  takeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, minHeight: 42, borderRadius: 10, backgroundColor: C.primary },
+  takeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, minHeight: 44, borderRadius: 12, backgroundColor: C.primary },
   takeText: { fontSize: 13.5, fontWeight: "600", color: "#fff" },
 });
