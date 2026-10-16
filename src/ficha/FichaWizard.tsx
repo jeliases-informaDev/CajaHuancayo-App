@@ -277,21 +277,25 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
   return (
     <SafeAreaView edges={["bottom"]} style={st.safe}>
       <StatusBar style="light" />
-      <LinearGradient colors={[...G.hero]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[st.top, { paddingTop: Math.max(insets.top, 10) }]}>
+      <View style={[st.top, { paddingTop: Math.max(insets.top, 10) }]}>
         <View style={st.head}>
           <Pressable onPress={salir} style={st.iconBtn} accessibilityLabel="Cerrar ficha"><MaterialCommunityIcons name="close" size={20} color="#fff" /></Pressable>
           <View style={{ flex: 1 }}>
-            <View style={st.tipoPill}>
-              <MaterialCommunityIcons name={tema.icono as any} size={12} color="#fff" />
-              <Text style={st.tipoText}>{tema.nombre.toUpperCase()}</Text>
-            </View>
+            <Text style={st.tipoText}>{tema.nombre.toUpperCase()}</Text>
             <Text style={st.title} numberOfLines={1}>{expediente.nombres_cliente}</Text>
             <Text style={st.sub} numberOfLines={1}>{expediente.codigo_expediente}</Text>
           </View>
           <Pressable onPress={() => setVerBase("cliente")} style={st.baseBtn} accessibilityLabel="Ver datos de la base">
-            <MaterialCommunityIcons name="database-eye-outline" size={18} color="#fff" />
-            <Text style={st.baseBtnText}>Base</Text>
+            <MaterialCommunityIcons name="database-eye-outline" size={17} color="#fff" />
+            <Text style={st.baseBtnText}>Datos base</Text>
           </Pressable>
+        </View>
+
+        <View style={st.progressWrap}>
+          <View style={st.progressTrack}>
+            <LinearGradient colors={[...G.brand]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[st.progressFill, { width: `${((idx + 1) / pasos.length) * 100}%` }]} />
+          </View>
+          <Text style={st.progressText}>Paso {idx + 1} de {pasos.length}</Text>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.stepperScroll} contentContainerStyle={st.stepper}>
@@ -302,17 +306,17 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
             const pendiente = visto && !completo && !actualPaso && p.id !== "verificacion" && p.id !== "otros";
             return (
               <Pressable key={p.id} onPress={() => irA(i)} style={[st.stepChip, actualPaso && st.stepChipOn]}>
-                {completo && !actualPaso ? <MaterialCommunityIcons name="check-circle" size={14} color="#7CF0C4" /> : pendiente ? <MaterialCommunityIcons name="alert-circle" size={14} color="#FFC857" /> : <Text style={[st.stepNum, actualPaso && st.stepTextOn]}>{i + 1}</Text>}
+                {completo && !actualPaso ? <MaterialCommunityIcons name="check" size={13} color="#7CF0C4" /> : pendiente ? <MaterialCommunityIcons name="alert-circle-outline" size={13} color="#FFC857" /> : <Text style={[st.stepNum, actualPaso && st.stepTextOn]}>{i + 1}</Text>}
                 <Text style={[st.stepText, actualPaso && st.stepTextOn]}>{p.corto}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
-      </LinearGradient>
+      </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.body}>
-          <Text style={st.stepTitle}>{`Paso ${idx + 1} de ${pasos.length} · ${actual.titulo}`}</Text>
+          <Text style={st.stepTitle}>{actual.titulo}</Text>
           {restaurado && idx === 0 ? <Callout tipo="info">Recuperamos el avance que dejaste en esta ficha.</Callout> : null}
 
           {actual.id === "verificacion" ? (
@@ -336,7 +340,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
         <Pressable
           onPress={ultimo ? confirmarEnvio : () => irA(idx + 1)}
           disabled={saving}
-          style={[st.nextBtn, { backgroundColor: ultimo ? C.success : C.navy2 }, saving && { opacity: 0.6 }]}
+          style={[st.nextBtn, { backgroundColor: ultimo ? C.success : C.primary }, saving && { opacity: 0.6 }]}
         >
           <Text style={st.nextText}>{saving ? "Guardando…" : ultimo ? "Revisar y enviar" : `Continuar · ${pasos[idx + 1].corto}`}</Text>
           <MaterialCommunityIcons name={ultimo ? "send-check-outline" : "chevron-right"} size={20} color="#fff" />
@@ -361,29 +365,32 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
 
 const st = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
-  top: { borderBottomLeftRadius: 24, borderBottomRightRadius: 24, paddingBottom: 14, overflow: "hidden" },
-  head: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 12 },
-  iconBtn: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.14)" },
-  tipoPill: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.16)" },
-  tipoText: { fontSize: 9.5, fontWeight: "900", letterSpacing: 0.6, color: "#fff" },
-  title: { fontSize: 17, fontWeight: "900", color: "#fff", marginTop: 4, letterSpacing: -0.3 },
-  sub: { fontSize: 11, color: "#C3CDF6", fontWeight: "700" },
-  baseBtn: { alignItems: "center", justifyContent: "center", paddingHorizontal: 11, paddingVertical: 7, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.16)", gap: 1 },
-  baseBtnText: { fontSize: 10, fontWeight: "900", color: "#fff" },
+  top: { backgroundColor: C.navy, paddingBottom: 12 },
+  head: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
+  iconBtn: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.1)" },
+  tipoText: { fontSize: 10, fontWeight: "700", letterSpacing: 1, color: "#E9A6D3" },
+  title: { fontSize: 17, fontWeight: "700", color: "#fff", marginTop: 1, letterSpacing: -0.2 },
+  sub: { fontSize: 11.5, color: "#9AA5D3", fontWeight: "500" },
+  baseBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 11, height: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.1)" },
+  baseBtnText: { fontSize: 11.5, fontWeight: "600", color: "#fff" },
+  progressWrap: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
+  progressTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.14)", overflow: "hidden" },
+  progressFill: { height: 4, borderRadius: 2 },
+  progressText: { fontSize: 11, fontWeight: "600", color: "#B6BFE0" },
   stepperScroll: { flexGrow: 0 },
-  stepper: { paddingHorizontal: 14, gap: 8 },
-  stepChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: "rgba(255,255,255,0.22)", backgroundColor: "rgba(255,255,255,0.10)" },
-  stepChipOn: { backgroundColor: "#fff", borderColor: "#fff" },
-  stepNum: { fontSize: 11.5, fontWeight: "900", color: "#D7DEFC" },
-  stepText: { fontSize: 12, fontWeight: "800", color: "#D7DEFC" },
+  stepper: { paddingHorizontal: 14, gap: 6 },
+  stepChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.08)" },
+  stepChipOn: { backgroundColor: "#fff" },
+  stepNum: { fontSize: 11.5, fontWeight: "700", color: "#B6BFE0" },
+  stepText: { fontSize: 12, fontWeight: "600", color: "#B6BFE0" },
   stepTextOn: { color: C.navy },
   body: { padding: 14, gap: 12, paddingBottom: 24 },
-  stepTitle: { fontSize: 12, fontWeight: "900", color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 },
+  stepTitle: { fontSize: 20, fontWeight: "700", color: C.ink, letterSpacing: -0.3 },
   footer: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: "#fff" },
   backBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 12 },
-  backText: { fontSize: 13.5, fontWeight: "800", color: C.primary },
-  nextBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 14 },
-  nextText: { fontSize: 14, fontWeight: "900", color: "#fff" },
+  backText: { fontSize: 14, fontWeight: "600", color: C.text2 },
+  nextBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 48, borderRadius: 10 },
+  nextText: { fontSize: 14.5, fontWeight: "600", color: "#fff" },
   cameraControls: { position: "absolute", bottom: 40, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 30 },
   cameraCancel: { width: 50, height: 50, borderRadius: 25, backgroundColor: "#00000080", alignItems: "center", justifyContent: "center" },
   cameraShutter: { width: 74, height: 74, borderRadius: 37, backgroundColor: "#ffffff40", alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "#fff" },

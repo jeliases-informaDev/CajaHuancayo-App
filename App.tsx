@@ -9,14 +9,13 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import NetInfo from "@react-native-community/netinfo";
 import { AuthProvider, useAuth } from "./src/AuthContext";
-import { C, G } from "./src/theme";
+import { C } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
 import MapScreen from "./src/screens/MapScreen";
@@ -124,14 +123,10 @@ function Shell() {
           refreshRevision={renderedRevision}
           currentLocation={location}
           onDetailVisibilityChange={setDetailOpen}
+          onNavigate={(next: Tab) => setTab(next)}
         />
       </View>
-      <View
-        style={[
-          s.nav,
-          { marginBottom: Math.max(insets.bottom, 8) },
-        ]}
-      >
+      <View style={[s.nav, { paddingBottom: Math.max(insets.bottom, 6) }]}>
         {tabs.map((item) => {
           const selected = tab === item.key;
           return (
@@ -142,16 +137,9 @@ function Shell() {
               accessibilityState={{ selected }}
               style={({ pressed }) => [s.navItem, pressed && s.navItemPressed]}
             >
-              {selected ? <LinearGradient colors={[...G.brand]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.iconWrap, s.iconWrapActive]}>
-                <MaterialCommunityIcons
-                  name={item.active}
-                  size={23}
-                  color="#fff"
-                />
-              </LinearGradient> : <View style={s.iconWrap}><MaterialCommunityIcons name={item.icon} size={22} color="#78869B" /></View>}
-              <Text style={[s.navLabel, selected && s.navLabelActive]}>
-                {item.label}
-              </Text>
+              <View style={[s.navIndicator, selected && s.navIndicatorOn]} />
+              <MaterialCommunityIcons name={selected ? item.active : item.icon} size={24} color={selected ? C.primary : C.muted} />
+              <Text style={[s.navLabel, selected && s.navLabelActive]}>{item.label}</Text>
             </Pressable>
           );
         })}
@@ -181,7 +169,7 @@ const s = StyleSheet.create({
   },
   loadingText: { color: C.muted, fontWeight: "700" },
   offline: {
-    backgroundColor: C.navy2,
+    backgroundColor: C.navy,
     paddingBottom: 7,
     paddingHorizontal: 12,
     alignItems: "center",
@@ -189,35 +177,14 @@ const s = StyleSheet.create({
     flexDirection: "row",
     gap: 7,
   },
-  locationWarning: { backgroundColor: "#C56A00", paddingBottom: 7, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7 },
+  locationWarning: { backgroundColor: C.warning, paddingBottom: 7, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7 },
   locationWarningPressed: { opacity: 0.82 },
   offlineText: { color: "#fff", fontWeight: "800", fontSize: 11 },
-  nav: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#E4EAF3",
-    borderRadius: 23,
-    flexDirection: "row",
-    height: 72,
-    marginHorizontal: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 7,
-    elevation: 18,
-    shadowColor: C.navy,
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.13,
-    shadowRadius: 14,
-  },
-  navItem: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 3, borderRadius: 17 },
-  navItemPressed: { opacity: 0.62, transform: [{ scale: 0.96 }] },
-  iconWrap: {
-    width: 40,
-    height: 34,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconWrapActive: { elevation: 7, shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.28, shadowRadius: 7 },
-  navLabel: { fontSize: 9, lineHeight: 11, color: "#78869B", fontWeight: "700" },
-  navLabelActive: { color: C.primary, fontWeight: "900" },
+  nav: { backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border, flexDirection: "row", paddingTop: 0 },
+  navItem: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 3, paddingTop: 9, paddingBottom: 4 },
+  navItemPressed: { opacity: 0.6 },
+  navIndicator: { position: "absolute", top: 0, width: 28, height: 3, borderBottomLeftRadius: 3, borderBottomRightRadius: 3, backgroundColor: "transparent" },
+  navIndicatorOn: { backgroundColor: C.magenta },
+  navLabel: { fontSize: 10.5, lineHeight: 13, color: C.muted, fontWeight: "600" },
+  navLabelActive: { color: C.primary, fontWeight: "700" },
 });

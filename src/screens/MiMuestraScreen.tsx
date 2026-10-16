@@ -1,11 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Linking, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
-import { Badge, Card, Empty, Header, Loading, Screen } from "../ui";
+import { Badge, Empty, Header, Loading, Screen } from "../ui";
 import { C } from "../theme";
 import FichaWizard from "../ficha/FichaWizard";
 import { cacheGet, cacheSet } from "../offlineSync";
+
+function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371000;
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
 
 const CACHE_KEY_MUESTRA = "mias_v1";
 const CACHE_KEY_GEO = "geo_cfg_v1";
@@ -28,6 +35,8 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   const [errorDisponibles, setErrorDisponibles] = useState("");
   const [claimingId, setClaimingId] = useState<number | null>(null);
   const [geoConfig, setGeoConfig] = useState(GEO_DEFAULT);
+  const [query, setQuery] = useState("");
+  const [filtro, setFiltro] = useState<"TODOS" | "MYPE" | "CONSUMO" | "ALTA">("TODOS");
 
   const mounted = useRef(true);
 
@@ -117,173 +126,156 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     );
   }
 
-  const priorityColor = (p: string) => (p === "ALTA" ? C.danger : p === "BAJA" ? C.muted : C.warning);
-  const initialsOf = (name: string) => (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-  const comoLlegar = (lat: number, lng: number) => {
-    const origin = currentLocation ? `&origin=${currentLocation.latitude},${currentLocation.longitude}` : "";
-    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}${origin}`);
+  const q = query.trim().toLowerCase();
+  const pasaFiltro = (exp: any, prioridad?: string) => {
+    if (filtro === "MYPE" && exp.tipo_credito !== "OTROS") return false;
+    if (filtro === "CONSUMO" && exp.tipo_credito !== "CONSUMO") return false;
+    if (filtro === "ALTA" && prioridad !== "ALTA") return false;
+    if (!q) return true;
+    return [exp.nombres_cliente, exp.codigo_expediente, exp.numero_documento_cliente, exp.distrito, exp.direccion_domicilio].some((v) => String(v || "").toLowerCase().includes(q));
   };
+  const visiblesMias = asignaciones.filter((a) => pasaFiltro(a.expediente, a.prioridad));
+  const visiblesDisp = disponibles.filter((e) => pasaFiltro(e));
+  const prioridadColor = (p: string) => (p === "ALTA" ? C.danger : p === "BAJA" ? C.borderStrong : C.warning);
+  const distanciaA = (exp: any) => {
+    if (!currentLocation || exp.latitud == null) return null;
+    const lat = Number(exp.latitud);
+    const lng = Number(exp.longitud);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const m = distanciaMetros(currentLocation.latitude, currentLocation.longitude, lat, lng);
+    return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
+  };
+  const comoLlegar = (exp: any) => {
+    const tiene = exp.latitud != null && Number.isFinite(Number(exp.latitud)) && Number.isFinite(Number(exp.longitud));
+    const destino = tiene ? `${exp.latitud},${exp.longitud}` : encodeURIComponent([exp.direccion_domicilio, exp.distrito].filter(Boolean).join(", "));
+    const origen = currentLocation ? `&origin=${currentLocation.latitude},${currentLocation.longitude}` : "";
+    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destino}${origen}`);
+  };
+
+  const Etiqueta = ({ exp }: { exp: any }) => {
+    const mype = exp.tipo_credito === "OTROS";
+    return (
+      <View style={[s.tag, { backgroundColor: mype ? C.magentaBg : C.infoBg }]}>
+        <Text style={[s.tagText, { color: mype ? C.magenta : C.primary }]}>{mype ? "MYPE" : "CONSUMO"}</Text>
+      </View>
+    );
+  };
+
+  const FILTROS: { id: typeof filtro; label: string }[] = [
+    { id: "TODOS", label: "Todos" }, { id: "MYPE", label: "MYPE" }, { id: "CONSUMO", label: "Consumo" }, { id: "ALTA", label: "Prioritarios" },
+  ];
 
   return (
     <Screen refreshControl={<RefreshControl refreshing={vista === "mia" ? refreshing : loadingDisponibles} onRefresh={() => (vista === "mia" ? load(true) : loadDisponibles())} colors={[C.primary]} />}>
-      <Header title="Mi muestra" subtitle={vista === "mia" ? `${asignaciones.length} expediente(s) asignado(s)` : `${disponibles.length} disponible(s) en tu zona`} />
+      <Header title="Mi muestra" subtitle={vista === "mia" ? `${visiblesMias.length} de ${asignaciones.length} caso(s)` : `${visiblesDisp.length} disponible(s) en tu zona`} />
 
-      <View style={s.tabsRow}>
-        <Pressable onPress={() => setVista("mia")} style={[s.tabBtn, vista === "mia" && s.tabBtnOn]}>
-          <Text style={[s.tabBtnText, vista === "mia" && s.tabBtnTextOn]}>Mi muestra</Text>
-        </Pressable>
-        <Pressable onPress={() => setVista("disponibles")} style={[s.tabBtn, vista === "disponibles" && s.tabBtnOn]}>
-          <Text style={[s.tabBtnText, vista === "disponibles" && s.tabBtnTextOn]}>Disponibles en tu zona</Text>
-        </Pressable>
+      <View style={s.tabs}>
+        {([["mia", "Asignados"], ["disponibles", "Disponibles en tu zona"]] as const).map(([id, label]) => (
+          <Pressable key={id} onPress={() => setVista(id)} style={[s.tab, vista === id && s.tabOn]}>
+            <Text style={[s.tabText, vista === id && s.tabTextOn]}>{label}</Text>
+          </Pressable>
+        ))}
       </View>
+
+      <View style={s.search}>
+        <MaterialCommunityIcons name="magnify" size={19} color={C.muted} />
+        <TextInput style={s.searchInput} value={query} onChangeText={setQuery} placeholder="Buscar por cliente, código, documento o distrito" placeholderTextColor={C.placeholder} autoCorrect={false} />
+        {query ? <Pressable onPress={() => setQuery("")} hitSlop={8}><MaterialCommunityIcons name="close-circle" size={18} color={C.placeholder} /></Pressable> : null}
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filters}>
+        {FILTROS.filter((f) => vista === "mia" || f.id !== "ALTA").map((f) => (
+          <Pressable key={f.id} onPress={() => setFiltro(f.id)} style={[s.filter, filtro === f.id && s.filterOn]}>
+            <Text style={[s.filterText, filtro === f.id && s.filterTextOn]}>{f.label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
 
       {vista === "disponibles" ? (
         <>
-          <Text style={s.qHint}>Expedientes pendientes de tu departamento que ningún auditor ha tomado todavía. Al tomar uno, pasa a tu muestra.</Text>
+          <Text style={s.hint}>Casos pendientes de tu departamento que ningún auditor ha tomado. Al tomar uno, pasa a tu muestra.</Text>
           {errorDisponibles && !disponibles.length ? <Empty title="No pudimos cargar la lista" text={errorDisponibles} /> : null}
-          {!errorDisponibles && !loadingDisponibles && !disponibles.length ? <Empty title="Nada disponible por ahora" text="No hay expedientes pendientes sin tomar en tu zona." /> : null}
-          {disponibles.map((expediente) => {
-            const isOtros = expediente.tipo_credito === "OTROS";
-            const claiming = claimingId === expediente.id_expediente;
+          {!errorDisponibles && !loadingDisponibles && !visiblesDisp.length ? <Empty title="Nada para mostrar" text={disponibles.length ? "Ningún caso coincide con la búsqueda o el filtro." : "No hay casos pendientes sin tomar en tu zona."} /> : null}
+          {visiblesDisp.map((exp) => {
+            const claiming = claimingId === exp.id_expediente;
             return (
-              <Card key={expediente.id_expediente} style={s.listCard}>
-                <View style={s.listRow}>
-                  <View style={[s.avatar, { backgroundColor: isOtros ? "#FCE8F3" : "#E9EEFC" }]}>
-                    <Text style={[s.avatarText, { color: isOtros ? C.magenta : C.primary }]}>{initialsOf(expediente.nombres_cliente)}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.listTitle} numberOfLines={1}>{expediente.nombres_cliente}</Text>
-                    <View style={s.chipRow}>
-                      <View style={[s.typeChip, { backgroundColor: isOtros ? "#FCE8F3" : "#E9EEFC" }]}>
-                        <MaterialCommunityIcons name={isOtros ? "store-outline" : "account-cash-outline"} size={12} color={isOtros ? C.magenta : C.primary} />
-                        <Text style={[s.typeChipText, { color: isOtros ? C.magenta : C.primary }]}>{expediente.tipo_credito}</Text>
-                      </View>
-                      <Text style={s.listCode}>{expediente.codigo_expediente}</Text>
-                    </View>
-                    <View style={s.listMetaRow}>
-                      <MaterialCommunityIcons name="map-marker-outline" size={13} color={C.muted} />
-                      <Text style={s.listSub} numberOfLines={1}>{expediente.distrito || "Sin distrito"} · {expediente.direccion_domicilio || "Sin dirección"}</Text>
-                    </View>
-                  </View>
+              <View key={exp.id_expediente} style={s.row}>
+                <View style={s.rowBody}>
+                  <View style={s.rowTop}><Text style={s.name} numberOfLines={1}>{exp.nombres_cliente}</Text><Etiqueta exp={exp} /></View>
+                  <Text style={s.meta} numberOfLines={1}>{exp.codigo_expediente} · {exp.distrito || "Sin distrito"}</Text>
+                  <Text style={s.addr} numberOfLines={1}>{exp.direccion_domicilio || "Sin dirección registrada"}</Text>
+                  <Pressable onPress={() => tomarCaso(exp.id_expediente)} disabled={claiming} style={[s.takeBtn, claiming && { opacity: 0.6 }]}>
+                    <MaterialCommunityIcons name={claiming ? "timer-sand" : "hand-extended-outline"} size={16} color="#fff" />
+                    <Text style={s.takeText}>{claiming ? "Tomando…" : "Tomar este caso"}</Text>
+                  </Pressable>
                 </View>
-                <Pressable onPress={() => tomarCaso(expediente.id_expediente)} disabled={claiming} style={[s.claimBtn, claiming && s.claimBtnDisabled]}>
-                  <MaterialCommunityIcons name={claiming ? "timer-sand" : "hand-extended-outline"} size={16} color="#fff" />
-                  <Text style={s.claimBtnText}>{claiming ? "Tomando…" : "Tomar este caso"}</Text>
-                </Pressable>
-              </Card>
+              </View>
             );
           })}
         </>
       ) : (
-      <>
-      {error && !asignaciones.length ? <Empty title="No pudimos cargar tu muestra" text={error} /> : null}
-      {!error && !asignaciones.length ? <Empty title="Sin expedientes asignados" text="Tu supervisor aún no te ha asignado una muestra, o revisa «Disponibles en tu zona» para tomar uno tú mismo." /> : null}
-      {asignaciones.map((item) => {
-        const isOtros = item.expediente.tipo_credito === "OTROS";
-        const accent = priorityColor(item.prioridad);
-        return (
-          <Pressable key={item.id_asignacion} onPress={() => setSelected(item)} style={({ pressed }) => pressed && s.listCardPressed}>
-            <Card style={StyleSheet.flatten([s.listCard, { borderLeftColor: accent, borderLeftWidth: 4 }])}>
-              <View style={s.listRow}>
-                <View style={[s.avatar, { backgroundColor: isOtros ? "#FCE8F3" : "#E9EEFC" }]}>
-                  <Text style={[s.avatarText, { color: isOtros ? C.magenta : C.primary }]}>{initialsOf(item.expediente.nombres_cliente)}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={s.listHeader}>
-                    <Text style={s.listTitle} numberOfLines={1}>{item.expediente.nombres_cliente}</Text>
-                    <Badge status={item.prioridad === "ALTA" ? "NO_ENCONTRADO" : item.prioridad === "BAJA" ? "INACTIVO" : "PENDIENTE"} label={item.prioridad} />
-                  </View>
-                  <View style={s.chipRow}>
-                    <View style={[s.typeChip, { backgroundColor: isOtros ? "#FCE8F3" : "#E9EEFC" }]}>
-                      <MaterialCommunityIcons name={isOtros ? "store-outline" : "account-cash-outline"} size={12} color={isOtros ? C.magenta : C.primary} />
-                      <Text style={[s.typeChipText, { color: isOtros ? C.magenta : C.primary }]}>{item.expediente.tipo_credito}</Text>
-                    </View>
-                    <Text style={s.listCode}>{item.expediente.codigo_expediente}</Text>
-                  </View>
-                  <View style={s.listMetaRow}>
-                    <MaterialCommunityIcons name="map-marker-outline" size={13} color={C.muted} />
-                    <Text style={s.listSub} numberOfLines={1}>{item.expediente.distrito || "Sin distrito"} · {item.expediente.direccion_domicilio || "Sin dirección"}</Text>
+        <>
+          {error && !asignaciones.length ? <Empty title="No pudimos cargar tu muestra" text={error} /> : null}
+          {!error && !asignaciones.length ? <Empty title="Sin casos asignados" text="Tu supervisor aún no te asignó una muestra. Revisa «Disponibles en tu zona» para tomar un caso." /> : null}
+          {!!asignaciones.length && !visiblesMias.length ? <Empty title="Nada para mostrar" text="Ningún caso coincide con la búsqueda o el filtro." /> : null}
+          {visiblesMias.map((item) => {
+            const exp = item.expediente;
+            const dist = distanciaA(exp);
+            return (
+              <Pressable key={item.id_asignacion} onPress={() => setSelected(item)} style={({ pressed }) => [s.row, pressed && s.rowPressed]}>
+                <View style={[s.bar, { backgroundColor: prioridadColor(item.prioridad) }]} />
+                <View style={s.rowBody}>
+                  <View style={s.rowTop}><Text style={s.name} numberOfLines={1}>{exp.nombres_cliente}</Text><Etiqueta exp={exp} /></View>
+                  <Text style={s.meta} numberOfLines={1}>{exp.codigo_expediente} · {exp.distrito || "Sin distrito"}</Text>
+                  <Text style={s.addr} numberOfLines={1}>{exp.direccion_domicilio || "Sin dirección registrada"}</Text>
+                  <View style={s.rowFoot}>
+                    {item.prioridad === "ALTA" ? <Badge status="NO_ENCONTRADO" label="Prioridad alta" /> : null}
+                    {dist ? <View style={s.dist}><MaterialCommunityIcons name="navigation-variant-outline" size={13} color={C.primary} /><Text style={s.distText}>a {dist}</Text></View> : null}
+                    <View style={{ flex: 1 }} />
+                    <Pressable onPress={(e) => { e.stopPropagation(); comoLlegar(exp); }} hitSlop={6} style={s.goto}>
+                      <MaterialCommunityIcons name="directions" size={15} color={C.primary} />
+                      <Text style={s.gotoText}>Cómo llegar</Text>
+                    </Pressable>
                   </View>
                 </View>
-                <MaterialCommunityIcons name="chevron-right" size={20} color="#C3CCDB" />
-              </View>
-              {Number.isFinite(Number(item.expediente.latitud)) && Number.isFinite(Number(item.expediente.longitud)) ? (
-                <Pressable
-                  onPress={(e) => { e.stopPropagation(); comoLlegar(Number(item.expediente.latitud), Number(item.expediente.longitud)); }}
-                  style={({ pressed }) => [s.gotoRow, pressed && s.pressed]}
-                >
-                  <MaterialCommunityIcons name="directions" size={15} color={C.primary} />
-                  <Text style={s.gotoText}>Cómo llegar</Text>
-                </Pressable>
-              ) : null}
-            </Card>
-          </Pressable>
-        );
-      })}
-      </>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={C.borderStrong} />
+              </Pressable>
+            );
+          })}
+        </>
       )}
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  tabsRow: { flexDirection: "row", gap: 8, marginTop: 4, marginBottom: 2 },
-  tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: "center", backgroundColor: "#F1F5F9" },
-  tabBtnOn: { backgroundColor: C.primary },
-  tabBtnText: { fontSize: 12.5, fontWeight: "800", color: C.muted },
-  tabBtnTextOn: { color: "#fff" },
-  claimBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, paddingVertical: 10, borderRadius: 12, backgroundColor: C.primary },
-  claimBtnDisabled: { opacity: 0.6 },
-  claimBtnText: { fontSize: 13, fontWeight: "800", color: "#fff" },
-  closeBtn: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
-  checklist: { flexDirection: "row", gap: 14, paddingHorizontal: 2, marginTop: -6 },
-  checklistItem: { flexDirection: "row", alignItems: "center", gap: 5 },
-  checklistText: { fontSize: 11, fontWeight: "800", color: "#9AA5B5" },
-  checklistTextDone: { color: C.success },
-  backRow: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 6, alignSelf: "flex-start" },
-  backRowText: { fontSize: 13, fontWeight: "800", color: C.primary },
-  listCard: { gap: 0, paddingVertical: 12 },
-  listCardPressed: { opacity: 0.75 },
-  gotoRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border, alignSelf: "flex-start" },
-  gotoText: { fontSize: 12, fontWeight: "800", color: C.primary },
-  pressed: { opacity: 0.6 },
-  listRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
-  avatar: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 13, fontWeight: "900" },
-  listHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  listTitle: { fontSize: 14, fontWeight: "900", color: C.text, flex: 1, marginRight: 8 },
-  chipRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 5 },
-  typeChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
-  typeChipText: { fontSize: 9.5, fontWeight: "900", letterSpacing: 0.3 },
-  listCode: { fontSize: 11, color: C.muted, fontWeight: "700" },
-  listMetaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5 },
-  listSub: { fontSize: 11.5, color: C.muted, flexShrink: 1 },
-  infoRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4, gap: 10 },
-  infoLabel: { fontSize: 11, color: C.muted, fontWeight: "700" },
-  infoValue: { fontSize: 12, color: C.text, fontWeight: "700", flexShrink: 1, textAlign: "right" },
-  resultGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  resultChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff" },
-  resultChipOn: { backgroundColor: C.primary, borderColor: C.primary },
-  resultChipText: { fontSize: 12, fontWeight: "800", color: C.muted },
-  resultChipTextOn: { color: "#fff" },
-  qHint: { fontSize: 11, color: C.muted, marginBottom: 4 },
-  qRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, gap: 10, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  qLabel: { fontSize: 12, color: C.text, flex: 1, fontWeight: "600" },
-  qButtons: { flexDirection: "row", gap: 8 },
-  qBtn: { width: 50, height: 42, borderRadius: 11, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
-  qBtnYesOn: { backgroundColor: C.success, borderColor: C.success },
-  qBtnNoOn: { backgroundColor: C.danger, borderColor: C.danger },
-  qBtnText: { fontSize: 11, fontWeight: "900", color: C.muted },
-  qBtnTextOn: { color: "#fff" },
-  field: { gap: 6, marginTop: 8 },
-  textInput: { minHeight: 44, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 12, fontSize: 13, color: C.text, backgroundColor: "#fff" },
-  textArea: { minHeight: 80, paddingTop: 10, textAlignVertical: "top" },
-  photoRow: { flexDirection: "row", gap: 10 },
-  photoBox: { flex: 1, minHeight: 90, borderRadius: 14, borderWidth: 1, borderColor: C.border, borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#F9FBFE" },
-  photoLabel: { fontSize: 11, fontWeight: "700", color: C.muted, textAlign: "center" },
-  error: { color: C.danger, fontSize: 12, textAlign: "center" },
-  cameraControls: { position: "absolute", bottom: 40, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 30 },
-  cameraCancel: { width: 50, height: 50, borderRadius: 25, backgroundColor: "#00000080", alignItems: "center", justifyContent: "center" },
-  cameraShutter: { width: 74, height: 74, borderRadius: 37, backgroundColor: "#ffffff40", alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "#fff" },
-  cameraShutterInner: { width: 58, height: 58, borderRadius: 29, backgroundColor: "#fff" },
+  tabs: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border, gap: 22 },
+  tab: { paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: "transparent", marginBottom: -1 },
+  tabOn: { borderBottomColor: C.primary },
+  tabText: { fontSize: 13.5, fontWeight: "500", color: C.muted },
+  tabTextOn: { color: C.ink, fontWeight: "700" },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 46, borderWidth: 1, borderColor: C.borderStrong, borderRadius: 10, paddingHorizontal: 12, backgroundColor: "#fff" },
+  searchInput: { flex: 1, fontSize: 14, color: C.ink, paddingVertical: 10 },
+  filters: { gap: 8, paddingRight: 8 },
+  filter: { paddingHorizontal: 14, height: 34, borderRadius: 17, borderWidth: 1, borderColor: C.borderStrong, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  filterOn: { backgroundColor: C.blue50, borderColor: C.primary2 },
+  filterText: { fontSize: 12.5, fontWeight: "500", color: C.text2 },
+  filterTextOn: { color: C.primary, fontWeight: "700" },
+  hint: { fontSize: 12, color: C.muted, lineHeight: 17 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, borderRadius: 14, paddingRight: 12, overflow: "hidden" },
+  rowPressed: { backgroundColor: C.surface2 },
+  bar: { alignSelf: "stretch", width: 4 },
+  rowBody: { flex: 1, paddingVertical: 12, paddingLeft: 12, gap: 2 },
+  rowTop: { flexDirection: "row", alignItems: "center", gap: 8 },
+  name: { flex: 1, fontSize: 15, fontWeight: "700", color: C.ink },
+  tag: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  tagText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
+  meta: { fontSize: 12, color: C.text2, fontWeight: "500" },
+  addr: { fontSize: 12, color: C.muted },
+  rowFoot: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
+  dist: { flexDirection: "row", alignItems: "center", gap: 4 },
+  distText: { fontSize: 12, fontWeight: "600", color: C.primary },
+  goto: { flexDirection: "row", alignItems: "center", gap: 4 },
+  gotoText: { fontSize: 12, fontWeight: "600", color: C.primary },
+  takeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, minHeight: 42, borderRadius: 10, backgroundColor: C.primary },
+  takeText: { fontSize: 13.5, fontWeight: "600", color: "#fff" },
 });

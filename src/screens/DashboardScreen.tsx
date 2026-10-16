@@ -1,27 +1,25 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { RefreshControl, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { Linking, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
 import { Badge, Card, Empty, Header, Loading, Screen } from "../ui";
-import { C, G } from "../theme";
+import { C } from "../theme";
 import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
 
 const CACHE_KEY_MUESTRA = "mias_v1";
 
-const STAT_TILES: { key: string; label: string; icon: string; tint: string }[] = [
-  { key: "total", label: "Expedientes asignados", icon: "folder-account-outline", tint: C.primary },
-  { key: "alta", label: "Prioridad alta", icon: "alert-octagon-outline", tint: C.danger },
-  { key: "consumo", label: "Créditos consumo", icon: "account-cash-outline", tint: C.info },
-  { key: "otros", label: "Créditos otros (MYPE)", icon: "store-outline", tint: C.warning },
-];
+function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371000;
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+const formatoDistancia = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
-export default function DashboardScreen({ refreshRevision = 0 }: { refreshRevision?: number }) {
-  const { width } = useWindowDimensions();
-  // En teléfono se ven 2 columnas; en tablet/mobile-web con más ancho, 4 en una fila
-  // en vez de dejar la mitad de la pantalla vacía.
-  const kpiWidth = width >= 700 ? "23.5%" : "48%";
-  const { api, user } = useAuth();
+export default function DashboardScreen({ refreshRevision = 0, onNavigate, currentLocation }: {
+  refreshRevision?: number; onNavigate?: (tab: string) => void; currentLocation?: { latitude: number; longitude: number } | null;
+}) {
+    const { api, user } = useAuth();
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
   const [pendientesSync, setPendientesSync] = useState(0);
   const [rechazadas, setRechazadas] = useState(0);
@@ -73,77 +71,121 @@ export default function DashboardScreen({ refreshRevision = 0 }: { refreshRevisi
   const otros = asignaciones.filter((a) => a.expediente?.tipo_credito === "OTROS").length;
   const altaPrioridad = asignaciones.filter((a) => a.prioridad === "ALTA");
   const stats: Record<string, number> = { total: asignaciones.length, alta: altaPrioridad.length, consumo, otros };
-  const prioritarias = [...altaPrioridad].slice(0, 3);
+
+  // "Siguiente caso": primero los de prioridad alta; si hay ubicación, el más cercano de ese grupo.
+  const candidatos = altaPrioridad.length ? altaPrioridad : asignaciones;
+  const conDistancia = candidatos.map((a) => {
+    const lat = Number(a.expediente?.latitud);
+    const lng = Number(a.expediente?.longitud);
+    const ok = a.expediente?.latitud != null && Number.isFinite(lat) && Number.isFinite(lng) && currentLocation;
+    return { a, d: ok ? distanciaMetros(currentLocation!.latitude, currentLocation!.longitude, lat, lng) : null };
+  });
+  conDistancia.sort((x, y) => (x.d ?? Infinity) - (y.d ?? Infinity));
+  const siguiente = conDistancia[0];
+  const nombre = (user?.nombres || user?.username || "Auditor").split(" ")[0];
+  const esMype = siguiente?.a.expediente?.tipo_credito === "OTROS";
+
+  const acciones = [
+    { key: "muestra", label: "Mi muestra", icon: "folder-account-outline" },
+    { key: "mapa", label: "Mapa", icon: "map-marker-radius-outline" },
+    { key: "mas", label: "Sincronización", icon: "cloud-sync-outline", alerta: pendientesSync + rechazadas > 0 },
+  ];
 
   return (
     <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[C.primary]} />}>
-      <Header title="Mi jornada" subtitle="Auditoría de visitas · Caja Huancayo" />
-      <LinearGradient colors={[...G.hero]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
-        <View style={s.heroGlow} />
-        <Text style={s.hello}>HOLA, {(user?.nombres || user?.username || "AUDITOR").toUpperCase()}</Text>
-        <Text style={s.title}>Tu muestra asignada,{"\n"}lista para verificar.</Text>
-        <View style={s.sync}>
-          <View style={[s.dot, refreshing && s.dotBusy]} />
-          <Text style={s.syncText}>{refreshing ? "Actualizando datos…" : "Sincronizado con el backoffice"}</Text>
-        </View>
-      </LinearGradient>
+      <Header
+        title={`Hola, ${nombre}`}
+        subtitle={new Date().toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long" }).replace(/^./, (c) => c.toUpperCase())}
+        right={
+          <View style={s.syncPill}>
+            <View style={[s.dot, (refreshing || pendientesSync > 0) && s.dotBusy]} />
+            <Text style={s.syncText}>{refreshing ? "Actualizando" : pendientesSync ? `${pendientesSync} pendiente(s)` : "Sincronizado"}</Text>
+          </View>
+        }
+      />
+
+      <Card style={s.summary}>
+        <View style={s.summaryCol}><Text style={s.summaryValue}>{stats.total}</Text><Text style={s.summaryLabel}>Por visitar</Text></View>
+        <View style={s.summaryDivider} />
+        <View style={s.summaryCol}><Text style={[s.summaryValue, stats.alta ? { color: C.danger } : null]}>{stats.alta}</Text><Text style={s.summaryLabel}>Prioritarios</Text></View>
+        <View style={s.summaryDivider} />
+        <View style={s.summaryCol}><Text style={s.summaryValue}>{pendientesSync + rechazadas}</Text><Text style={s.summaryLabel}>Por enviar</Text></View>
+      </Card>
+
       {error && !asignaciones.length ? (
         <Empty title="No pudimos cargar tu muestra" text={error} />
       ) : (
         <>
-          <View style={s.grid}>
-            {STAT_TILES.map((tile) => (
-              <Card key={tile.key} style={[s.kpi, { width: kpiWidth }]}>
-                <View style={[s.kpiIcon, { backgroundColor: `${tile.tint}18` }]}>
-                  <MaterialCommunityIcons name={tile.icon as any} size={20} color={tile.tint} />
+          {siguiente ? (
+            <Card style={s.next}>
+              <View style={s.nextHead}>
+                <Text style={s.nextEyebrow}>SIGUIENTE CASO</Text>
+                <View style={[s.typeChip, { backgroundColor: esMype ? C.magentaBg : C.infoBg }]}>
+                  <MaterialCommunityIcons name={esMype ? "store-outline" : "account-cash-outline"} size={12} color={esMype ? C.magenta : C.primary} />
+                  <Text style={[s.typeText, { color: esMype ? C.magenta : C.primary }]}>{esMype ? "MYPE" : "CONSUMO"}</Text>
                 </View>
-                <Text style={s.value}>{stats[tile.key]}</Text>
-                <Text style={s.label}>{tile.label}</Text>
-              </Card>
-            ))}
-          </View>
-
-          {prioritarias.length ? (
-            <Card>
-              <View style={s.sectionHead}>
-                <Text style={s.sectionTitle}>Prioridad alta</Text>
-                <Badge status="NO_ENCONTRADO" label={`${altaPrioridad.length} en total`} />
               </View>
-              {prioritarias.map((item, index) => (
-                <View key={item.id_asignacion} style={[s.priorityRow, index === prioritarias.length - 1 && s.priorityRowLast]}>
-                  <View style={s.priorityDot} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.priorityName}>{item.expediente?.nombres_cliente}</Text>
-                    <Text style={s.prioritySub}>{item.expediente?.codigo_expediente} · {item.expediente?.distrito || "Sin distrito"}</Text>
-                  </View>
-                  <MaterialCommunityIcons name="chevron-right" size={18} color="#9AA5B5" />
-                </View>
-              ))}
+              <Text style={s.nextName} numberOfLines={1}>{siguiente.a.expediente?.nombres_cliente}</Text>
+              <View style={s.nextMeta}>
+                <MaterialCommunityIcons name="map-marker-outline" size={14} color={C.muted} />
+                <Text style={s.nextAddr} numberOfLines={1}>{siguiente.a.expediente?.distrito || "Sin distrito"} · {siguiente.a.expediente?.direccion_domicilio || "Sin dirección"}</Text>
+              </View>
+              <View style={s.nextActions}>
+                {siguiente.d != null ? <View style={s.distChip}><MaterialCommunityIcons name="navigation-variant-outline" size={13} color={C.violet} /><Text style={s.distText}>a {formatoDistancia(siguiente.d)}</Text></View> : <View style={{ flex: 1 }} />}
+                <Pressable
+                  style={s.ghostBtn}
+                  onPress={() => {
+                    const e = siguiente.a.expediente;
+                    const destino = e?.latitud != null && Number.isFinite(Number(e.latitud)) ? `${e.latitud},${e.longitud}` : encodeURIComponent([e?.direccion_domicilio, e?.distrito].filter(Boolean).join(", "));
+                    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destino}`);
+                  }}
+                >
+                  <MaterialCommunityIcons name="directions" size={16} color={C.navy2} />
+                  <Text style={s.ghostText}>Cómo llegar</Text>
+                </Pressable>
+                <Pressable style={s.goBtn} onPress={() => onNavigate?.("muestra")}>
+                  <Text style={s.goText}>Abrir muestra</Text>
+                  <MaterialCommunityIcons name="arrow-right" size={16} color="#fff" />
+                </Pressable>
+              </View>
             </Card>
           ) : null}
 
-          <Card>
-            <View style={s.routeRow}>
-              <View style={[s.routeIcon, pendientesSync ? s.routeIconWarn : null]}>
-                <MaterialCommunityIcons name={pendientesSync ? "cloud-alert-outline" : "cloud-check-outline"} size={26} color={pendientesSync ? C.warning : C.success} />
+          <View style={s.actions}>
+            {acciones.map((a) => (
+              <Pressable key={a.key} style={s.action} onPress={() => onNavigate?.(a.key)}>
+                <View style={s.actionIcon}>
+                  <MaterialCommunityIcons name={a.icon as any} size={22} color={C.primary} />
+                  {a.alerta ? <View style={s.actionBadge} /> : null}
+                </View>
+                <Text style={s.actionLabel}>{a.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Card style={s.types}>
+            <Text style={s.typesTitle}>Mi muestra por tipo de crédito</Text>
+            {[{ label: "MYPE · Créditos Otros", n: stats.otros, color: C.magenta, icon: "store-outline" }, { label: "Consumo", n: stats.consumo, color: C.primary, icon: "account-cash-outline" }].map((t) => (
+              <View key={t.label} style={s.typeRow}>
+                <MaterialCommunityIcons name={t.icon as any} size={18} color={t.color} />
+                <Text style={s.typeLabel}>{t.label}</Text>
+                <View style={s.typeBar}><View style={[s.typeBarFill, { width: `${stats.total ? Math.round((t.n / stats.total) * 100) : 0}%`, backgroundColor: t.color }]} /></View>
+                <Text style={s.typeCount}>{t.n}</Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.routeTitle}>{pendientesSync ? `${pendientesSync} visita(s) por sincronizar` : "Todo sincronizado"}</Text>
-                <Text style={s.routeSub}>{pendientesSync ? "Se enviarán automáticamente al recuperar conexión." : "No hay visitas pendientes de envío."}</Text>
-              </View>
-              {pendientesSync ? <Badge status="PENDIENTE" label="Pendiente" /> : <Badge status="ACTIVO" label="Al día" />}
-            </View>
+            ))}
           </Card>
-          {rechazadas ? (
+
+          {pendientesSync || rechazadas ? (
             <Card>
               <View style={s.routeRow}>
                 <View style={[s.routeIcon, s.routeIconWarn]}>
-                  <MaterialCommunityIcons name="alert-octagon-outline" size={26} color={C.danger} />
+                  <MaterialCommunityIcons name={rechazadas ? "alert-octagon-outline" : "cloud-alert-outline"} size={24} color={rechazadas ? C.danger : C.warning} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.routeTitle}>{`${rechazadas} visita(s) rechazada(s) por el servidor`}</Text>
-                  <Text style={s.routeSub}>No se enviaron. Abre Perfil para ver el motivo; el expediente sigue en tu muestra para volver a registrarlo.</Text>
+                  <Text style={s.routeTitle}>{rechazadas ? `${rechazadas} visita(s) rechazada(s)` : `${pendientesSync} visita(s) por sincronizar`}</Text>
+                  <Text style={s.routeSub}>{rechazadas ? "No se enviaron. Abre Perfil para ver el motivo; el expediente sigue en tu muestra." : "Se enviarán automáticamente al recuperar conexión."}</Text>
                 </View>
+                {!rechazadas ? <Badge status="PENDIENTE" label="Pendiente" /> : null}
               </View>
             </Card>
           ) : null}
@@ -154,29 +196,45 @@ export default function DashboardScreen({ refreshRevision = 0 }: { refreshRevisi
 }
 
 const s = StyleSheet.create({
-  hero: { padding: 22, borderRadius: 24, gap: 10, overflow: "hidden" },
-  heroGlow: { position: "absolute", width: 180, height: 180, borderRadius: 100, right: -60, top: -70, backgroundColor: "#4B70FF22" },
-  hello: { color: "#8DB1FF", fontWeight: "900", fontSize: 10, letterSpacing: 1.2 },
-  title: { color: "#fff", fontSize: 27, lineHeight: 32, fontWeight: "900" },
-  sync: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 4 },
-  dot: { width: 7, height: 7, borderRadius: 7, backgroundColor: "#4CE0A7" },
-  dotBusy: { backgroundColor: "#FBBF24" },
-  syncText: { color: "#C6D5F6", fontSize: 11 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  kpi: { width: "48%", minHeight: 122 },
-  kpiIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  value: { fontSize: 26, fontWeight: "900", color: C.text, marginTop: 10 },
-  label: { fontSize: 11, fontWeight: "700", color: C.muted, marginTop: 3 },
-  sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  sectionTitle: { fontSize: 15, fontWeight: "900", color: C.text },
-  priorityRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  priorityRowLast: { borderBottomWidth: 0 },
-  priorityDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.danger },
-  priorityName: { fontSize: 13, fontWeight: "800", color: C.text },
-  prioritySub: { fontSize: 11, color: C.muted, marginTop: 2 },
+  syncPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  syncText: { fontSize: 11.5, fontWeight: "600", color: C.text2 },
+  dot: { width: 7, height: 7, borderRadius: 7, backgroundColor: C.success },
+  dotBusy: { backgroundColor: "#E89A0C" },
+  summary: { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
+  summaryCol: { flex: 1, alignItems: "center", gap: 2 },
+  summaryValue: { fontSize: 28, fontWeight: "700", color: C.ink, letterSpacing: -0.6 },
+  summaryLabel: { fontSize: 12, color: C.muted, fontWeight: "500" },
+  summaryDivider: { width: 1, height: 34, backgroundColor: C.border },
+  next: { gap: 6 },
+  nextHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  nextEyebrow: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, color: C.muted },
+  typeChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  typeText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
+  nextName: { fontSize: 18, fontWeight: "700", color: C.ink, letterSpacing: -0.3 },
+  nextMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
+  nextAddr: { flex: 1, fontSize: 12, color: C.muted },
+  nextActions: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
+  distChip: { flex: 1, flexDirection: "row", alignItems: "center", gap: 5 },
+  distText: { fontSize: 12.5, fontWeight: "600", color: C.primary },
+  ghostBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: C.borderStrong, backgroundColor: "#fff" },
+  ghostText: { fontSize: 12.5, fontWeight: "600", color: C.ink },
+  goBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 10, backgroundColor: C.primary },
+  goText: { fontSize: 12.5, fontWeight: "600", color: "#fff" },
+  actions: { flexDirection: "row", gap: 10 },
+  action: { flex: 1, alignItems: "center", gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border },
+  actionIcon: { width: 44, height: 44, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: C.blue50 },
+  actionBadge: { position: "absolute", top: 8, right: 8, width: 9, height: 9, borderRadius: 5, backgroundColor: C.danger, borderWidth: 1.5, borderColor: "#fff" },
+  actionLabel: { fontSize: 12, fontWeight: "600", color: C.text },
+  types: { gap: 12 },
+  typesTitle: { fontSize: 13, fontWeight: "700", color: C.ink },
+  typeRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  typeLabel: { width: 128, fontSize: 12.5, color: C.text2, fontWeight: "500" },
+  typeBar: { flex: 1, height: 6, borderRadius: 3, backgroundColor: C.soft, overflow: "hidden" },
+  typeBarFill: { height: 6, borderRadius: 3 },
+  typeCount: { width: 26, textAlign: "right", fontSize: 13, fontWeight: "700", color: C.ink },
   routeRow: { flexDirection: "row", alignItems: "center", gap: 11 },
-  routeIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: "#EAFBF3", alignItems: "center", justifyContent: "center" },
-  routeIconWarn: { backgroundColor: "#FFF6E5" },
-  routeTitle: { fontSize: 16, fontWeight: "900", color: C.text },
+  routeIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: "#E4F7EF", alignItems: "center", justifyContent: "center" },
+  routeIconWarn: { backgroundColor: "#FFF3D9" },
+  routeTitle: { fontSize: 14.5, fontWeight: "700", color: C.ink },
   routeSub: { fontSize: 11, lineHeight: 16, color: C.muted, marginTop: 3 },
 });

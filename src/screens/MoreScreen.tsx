@@ -71,14 +71,17 @@ export default function MoreScreen() {
   const showFieldHelp = () => Alert.alert("Visita de auditoría", "Mantén activa la ubicación durante la visita. Antes de guardar, verifica la fotografía, la firma del cliente y responde el cuestionario completo.");
 
   return <Screen>
-    <Header title="Mi perfil" subtitle="Cuenta operativa de campo" />
+    <Header title="Perfil" subtitle="Cuenta y sincronización" />
     <View style={s.profile}>
       <View style={s.avatar}><Text style={s.letter}>{displayName[0].toUpperCase()}</Text></View>
-      <Text style={s.name}>{displayName}</Text><Text style={s.username}>@{user?.username}</Text>
-      <View style={s.roleBadge}><View style={s.roleDot} /><Text style={s.role}>{user?.rol || "AUDITOR"}</Text></View>
+      <View style={{ flex: 1 }}>
+        <Text style={s.name}>{displayName}</Text>
+        <Text style={s.username}>@{user?.username}</Text>
+        <View style={s.roleBadge}><View style={s.roleDot} /><Text style={s.role}>{user?.rol || "AUDITOR"}</Text></View>
+      </View>
     </View>
     <Card>
-      <Text style={s.sectionLabel}>ESTADO DE LA CUENTA</Text>
+      <Text style={s.sectionLabel}>CUENTA Y SINCRONIZACIÓN</Text>
       {offlineSession ? <View style={s.row}><View style={[s.rowIcon, s.helpIcon]}><MaterialCommunityIcons name="timer-lock-outline" size={22} color={C.warning} /></View><View style={s.rowCopy}><Text style={s.rowTitle}>Acceso offline limitado</Text><Text style={s.rowSub}>Sesión cifrada válida hasta 8 horas. Se revalidará automáticamente al recuperar Internet.</Text></View></View> : null}
       <View style={s.row}><View style={[s.rowIcon, s.successIcon]}><MaterialCommunityIcons name="shield-check-outline" size={22} color={C.success} /></View><View style={s.rowCopy}><Text style={s.rowTitle}>Sesión protegida</Text><Text style={s.rowSub}>Tu acceso corresponde a una cuenta activa vinculada a este dispositivo.</Text></View><MaterialCommunityIcons name="check-circle" size={19} color={C.success} /></View>
       <View style={s.separator} />
@@ -92,7 +95,7 @@ export default function MoreScreen() {
     </Card>
     {rejected.length ? (
       <Card>
-        <Text style={s.sectionLabel}>VISITAS RECHAZADAS POR EL SERVIDOR</Text>
+        <Text style={s.sectionLabel}>VISITAS RECHAZADAS</Text>
         {rejected.map((visit) => (
           <View key={visit.id} style={s.syncErrorBox}>
             <MaterialCommunityIcons name="alert-octagon-outline" size={16} color={C.danger} />
@@ -108,10 +111,10 @@ export default function MoreScreen() {
       </Card>
     ) : null}
     <Card>
-      <Text style={s.sectionLabel}>AJUSTES Y AYUDA</Text>
-      <Pressable onPress={openSettings} style={({ pressed }) => [s.row, pressed && s.pressed]}><View style={[s.rowIcon, s.settingsIcon]}><MaterialCommunityIcons name="cellphone-cog" size={22} color={C.primary} /></View><View style={s.rowCopy}><Text style={s.rowTitle}>Permisos del dispositivo</Text><Text style={s.rowSub}>Administra ubicación, cámara y notificaciones.</Text></View><MaterialCommunityIcons name="chevron-right" size={22} color="#9AA5B5" /></Pressable>
+      <Text style={s.sectionLabel}>AJUSTES</Text>
+      <Pressable onPress={openSettings} style={({ pressed }) => [s.row, pressed && s.pressed]}><View style={[s.rowIcon, s.settingsIcon]}><MaterialCommunityIcons name="cellphone-cog" size={22} color={C.primary} /></View><View style={s.rowCopy}><Text style={s.rowTitle}>Permisos del dispositivo</Text><Text style={s.rowSub}>Administra ubicación, cámara y notificaciones.</Text></View><MaterialCommunityIcons name="chevron-right" size={22} color={C.placeholder} /></Pressable>
       <View style={s.separator} />
-      <Pressable onPress={showFieldHelp} style={({ pressed }) => [s.row, pressed && s.pressed]}><View style={[s.rowIcon, s.helpIcon]}><MaterialCommunityIcons name="book-open-variant" size={22} color={C.warning} /></View><View style={s.rowCopy}><Text style={s.rowTitle}>Guía de la visita de auditoría</Text><Text style={s.rowSub}>Recomendaciones para registrar una ficha completa.</Text></View><MaterialCommunityIcons name="chevron-right" size={22} color="#9AA5B5" /></Pressable>
+      <Pressable onPress={showFieldHelp} style={({ pressed }) => [s.row, pressed && s.pressed]}><View style={[s.rowIcon, s.helpIcon]}><MaterialCommunityIcons name="book-open-variant" size={22} color={C.warning} /></View><View style={s.rowCopy}><Text style={s.rowTitle}>Guía de la visita de auditoría</Text><Text style={s.rowSub}>Recomendaciones para registrar una ficha completa.</Text></View><MaterialCommunityIcons name="chevron-right" size={22} color={C.placeholder} /></Pressable>
     </Card>
     <Button title="Cerrar sesión" kind="danger" icon="logout" onPress={logout} />
     <Text style={s.version}>Auditoría de Visitas · Caja Huancayo · Versión 0.1.0</Text>
@@ -119,10 +122,35 @@ export default function MoreScreen() {
 }
 
 const s = StyleSheet.create({
-  profile: { alignItems: "center", backgroundColor: C.navy, borderRadius: 24, padding: 24 }, avatar: { width: 70, height: 70, borderRadius: 22, backgroundColor: C.primary2, alignItems: "center", justifyContent: "center" }, letter: { fontSize: 28, fontWeight: "900", color: "#fff" }, name: { fontSize: 20, fontWeight: "900", color: "#fff", marginTop: 12 }, username: { color: "#B9C9ED", fontSize: 11, fontWeight: "700", marginTop: 3 },
-  roleBadge: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#173A7A", borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, marginTop: 10 }, roleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.success }, role: { fontSize: 9, fontWeight: "900", color: "#DCE6FF", letterSpacing: 1 },
-  sectionLabel: { fontSize: 9, color: C.muted, fontWeight: "900", letterSpacing: 1, marginBottom: 7 }, row: { flexDirection: "row", gap: 12, alignItems: "center", paddingVertical: 10 }, rowIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" }, successIcon: { backgroundColor: "#E5F8F2" }, syncIcon: { backgroundColor: "#E8EEFF" }, settingsIcon: { backgroundColor: "#EAF2FF" }, helpIcon: { backgroundColor: "#FFF5DB" },
-  rowCopy: { flex: 1 }, rowTitle: { fontSize: 14, fontWeight: "900", color: C.text }, rowSub: { fontSize: 10.5, lineHeight: 15, color: C.muted, marginTop: 3 }, separator: { height: 1, backgroundColor: C.border }, online: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#E5F8F2", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 12 }, onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.success }, onlineText: { color: C.success, fontSize: 9, fontWeight: "900" }, pending: { backgroundColor: "#FFF2D7" }, pendingDot: { backgroundColor: C.warning }, pendingText: { color: "#9A6300" }, pressed: { opacity: 0.62 }, version: { textAlign: "center", fontSize: 10, color: C.muted },
-  discardBtn: { alignSelf: "flex-start", marginTop: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 9, backgroundColor: "#fff", borderWidth: 1, borderColor: C.danger }, discardText: { fontSize: 11, fontWeight: "800", color: C.danger },
-  syncErrorBox: { flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: "#FFF1F2", borderRadius: 10, padding: 9, marginTop: 2 }, syncErrorText: { flex: 1, fontSize: 10.5, lineHeight: 14, color: C.danger, fontWeight: "700" },
+  profile: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 16 },
+  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: C.navy, alignItems: "center", justifyContent: "center" },
+  letter: { fontSize: 22, fontWeight: "700", color: "#fff" },
+  name: { fontSize: 18, fontWeight: "700", color: C.ink, letterSpacing: -0.2 },
+  username: { color: C.muted, fontSize: 12.5, fontWeight: "500", marginTop: 2 },
+  roleBadge: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: C.successBg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginTop: 8 },
+  roleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.success },
+  role: { fontSize: 10.5, fontWeight: "700", color: C.success, letterSpacing: 0.5 },
+  sectionLabel: { fontSize: 11, color: C.muted, fontWeight: "700", letterSpacing: 0.6, marginBottom: 6 },
+  row: { flexDirection: "row", gap: 12, alignItems: "center", paddingVertical: 10 },
+  rowIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  successIcon: { backgroundColor: C.successBg },
+  syncIcon: { backgroundColor: C.blue50 },
+  settingsIcon: { backgroundColor: C.blue50 },
+  helpIcon: { backgroundColor: C.warningBg },
+  rowCopy: { flex: 1 },
+  rowTitle: { fontSize: 14, fontWeight: "600", color: C.ink },
+  rowSub: { fontSize: 12, lineHeight: 17, color: C.muted, marginTop: 2 },
+  separator: { height: 1, backgroundColor: C.border },
+  online: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.successBg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.success },
+  onlineText: { color: C.success, fontSize: 10.5, fontWeight: "700" },
+  pending: { backgroundColor: C.warningBg },
+  pendingDot: { backgroundColor: C.warning },
+  pendingText: { color: C.warning },
+  pressed: { opacity: 0.6 },
+  version: { textAlign: "center", fontSize: 11, color: C.placeholder },
+  discardBtn: { alignSelf: "flex-start", marginTop: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#fff", borderWidth: 1, borderColor: C.danger },
+  discardText: { fontSize: 12, fontWeight: "600", color: C.danger },
+  syncErrorBox: { flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: C.dangerBg, borderRadius: 8, padding: 10, marginTop: 2 },
+  syncErrorText: { flex: 1, fontSize: 12, lineHeight: 17, color: C.danger, fontWeight: "500" },
 });
