@@ -6,7 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
 import { Button, Input } from "../ui";
-import { C, G } from "../theme";
+import { C, F, G } from "../theme";
 import { request } from "../api";
 
 export default function LoginScreen() {
@@ -60,8 +60,8 @@ export default function LoginScreen() {
         </View>
       </View>
       <View style={s.copy}>
-        <Text style={s.headline}>Verificación de visitas en campo</Text>
-        <Text style={s.lead}>Tu muestra asignada, la ficha de entrevista y la evidencia, incluso sin señal.</Text>
+        <Text style={s.headline}>Cada visita deja una prueba que se puede revisar.</Text>
+        <Text style={s.lead}>Tu muestra, la ficha de entrevista y la evidencia, incluso sin señal.</Text>
       </View>
       <LinearGradient colors={[...G.brand]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.heroLine} />
     </View>
@@ -131,11 +131,11 @@ const s = StyleSheet.create({
   brandName: { color: "#fff", fontSize: 16, fontWeight: "600" },
   brandCompany: { color: "#8E99C6", fontSize: 10, fontWeight: "600", letterSpacing: 1.6, marginTop: 2 },
   copy: { gap: 8 },
-  headline: { color: "#fff", fontSize: 26, lineHeight: 32, fontWeight: "600", letterSpacing: -0.4, maxWidth: 360 },
+  headline: { fontFamily: F.displayLight, color: "#fff", fontSize: 31, lineHeight: 36, fontWeight: "normal", letterSpacing: -0.6, maxWidth: 360 },
   lead: { color: "#B6BFE0", fontSize: 14, lineHeight: 21, maxWidth: 340 },
   sheet: { flexGrow: 1, backgroundColor: "#fff", paddingHorizontal: 24, paddingTop: 26, paddingBottom: 28, gap: 14 },
   sheetWide: { flex: 1, marginTop: 0, borderRadius: 0, justifyContent: "center", paddingHorizontal: 56, backgroundColor: C.bg },
-  title: { fontSize: 22, fontWeight: "600", letterSpacing: -0.3, color: C.ink },
+  title: { fontFamily: F.display, fontSize: 28, fontWeight: "normal", letterSpacing: -0.4, color: C.ink },
   sub: { fontSize: 14, color: C.muted, marginTop: -6, lineHeight: 20, marginBottom: 6 },
   secret: { backgroundColor: C.blue50, borderRadius: 14, padding: 14, gap: 6 },
   secretTitle: { fontSize: 13, fontWeight: "600", color: C.ink },

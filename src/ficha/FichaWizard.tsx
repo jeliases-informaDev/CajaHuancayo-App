@@ -9,7 +9,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ScreenCapture from "expo-screen-capture";
 import NetInfo from "@react-native-community/netinfo";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { C, G } from "../theme";
+import { C, F, G } from "../theme";
 import { getAuditVisitFix } from "../useAuditorLocation";
 import { checkDeviceIntegrity } from "../deviceIntegrity";
 import { cacheGet, cacheSet, createOfflineVisitId, enqueueVisit, syncPendingVisits } from "../offlineSync";
@@ -385,7 +385,7 @@ const st = StyleSheet.create({
   stepText: { fontSize: 12, fontWeight: "600", color: "#B6BFE0" },
   stepTextOn: { color: C.navy },
   body: { padding: 14, gap: 12, paddingBottom: 24 },
-  stepTitle: { fontSize: 20, fontWeight: "700", color: C.ink, letterSpacing: -0.3 },
+  stepTitle: { fontFamily: F.display, fontSize: 26, lineHeight: 31, fontWeight: "normal", color: C.ink, letterSpacing: -0.3 },
   footer: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: "#fff" },
   backBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 12 },
   backText: { fontSize: 14, fontWeight: "600", color: C.text2 },

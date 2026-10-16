@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControlProps, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { C, statusColors } from "./theme";
+import { C, F, statusColors } from "./theme";
 
 // Componentes base de la app. Criterios: superficies planas con borde fino, una sola jerarquía
 // tipográfica (título 22, sección 15, cuerpo 14, apoyo 12), controles de 48 px de alto y un solo
@@ -127,7 +127,7 @@ const s = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 24, gap: 14, flexGrow: 1 },
   header: { flexDirection: "row", alignItems: "center", gap: 11, marginBottom: 2 },
   headerText: { flex: 1 },
-  title: { fontSize: 24, lineHeight: 30, fontWeight: "700", color: C.ink, letterSpacing: -0.4 },
+  title: { fontFamily: F.display, fontSize: 29, lineHeight: 34, fontWeight: "normal", color: C.ink, letterSpacing: -0.4 },
   subtitle: { fontSize: 13, lineHeight: 19, color: C.muted, marginTop: 1 },
   card: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 16 },
   button: { minHeight: 48, borderRadius: 10, backgroundColor: C.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 18, flexDirection: "row", gap: 8 },

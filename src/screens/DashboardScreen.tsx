@@ -3,7 +3,7 @@ import { Linking, Pressable, RefreshControl, StyleSheet, Text, View } from "reac
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
 import { Badge, Card, Empty, Header, Loading, Screen } from "../ui";
-import { C } from "../theme";
+import { C, F } from "../theme";
 import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
 
 const CACHE_KEY_MUESTRA = "mias_v1";
@@ -202,7 +202,7 @@ const s = StyleSheet.create({
   dotBusy: { backgroundColor: "#E89A0C" },
   summary: { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
   summaryCol: { flex: 1, alignItems: "center", gap: 2 },
-  summaryValue: { fontSize: 28, fontWeight: "700", color: C.ink, letterSpacing: -0.6 },
+  summaryValue: { fontFamily: F.display, fontSize: 36, lineHeight: 40, fontWeight: "normal", color: C.ink, letterSpacing: -0.8 },
   summaryLabel: { fontSize: 12, color: C.muted, fontWeight: "500" },
   summaryDivider: { width: 1, height: 34, backgroundColor: C.border },
   next: { gap: 6 },
@@ -210,7 +210,7 @@ const s = StyleSheet.create({
   nextEyebrow: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, color: C.muted },
   typeChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   typeText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
-  nextName: { fontSize: 18, fontWeight: "700", color: C.ink, letterSpacing: -0.3 },
+  nextName: { fontFamily: F.display, fontSize: 24, lineHeight: 29, fontWeight: "normal", color: C.ink, letterSpacing: -0.3 },
   nextMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
   nextAddr: { flex: 1, fontSize: 12, color: C.muted },
   nextActions: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },

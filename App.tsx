@@ -15,6 +15,7 @@ import {
 } from "react-native-safe-area-context";
 import NetInfo from "@react-native-community/netinfo";
 import { AuthProvider, useAuth } from "./src/AuthContext";
+import { useFonts, Newsreader_400Regular, Newsreader_500Medium } from "@expo-google-fonts/newsreader";
 import { C } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
@@ -46,6 +47,7 @@ const tabs: any[] = [
 ];
 function Shell() {
   const { token, loading, api, offlineSession } = useAuth();
+  const [fontsLoaded, fontsError] = useFonts({ Newsreader_400Regular, Newsreader_500Medium });
   const [tab, setTab] = useState<Tab>("principal");
   const [online, setOnline] = useState(true);
   const [revision, setRevision] = useState(0);
@@ -70,7 +72,7 @@ function Shell() {
       if (connected) syncPendingVisits(token).catch(() => {});
     });
   }, [token]);
-  if (loading)
+  if (loading || (!fontsLoaded && !fontsError))
     return (
       <View style={s.loading}>
         <MaterialCommunityIcons name="clipboard-check-outline" size={42} color={C.primary} />

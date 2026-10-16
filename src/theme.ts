@@ -15,6 +15,8 @@ export const G = {
   hero: ['#0D1533', '#16235A', '#2A2A73'] as const,
   soft: ['#FBE9F4', '#EFEAF8', '#EFF3FD'] as const,
 };
+// Newsreader (serif) solo para títulos y cifras grandes; el resto de la interfaz usa la fuente del sistema.
+export const F = { display: 'Newsreader_500Medium', displayLight: 'Newsreader_400Regular' };
 export const statusColors: Record<string, string> = {
   LIBRE: '#454E6B', PENDIENTE: C.warning, PROGRAMADA: C.warning, EN_VISITA: C.info,
   EN_PROCESO: C.success, GESTIONADO: C.success, VISITADO: C.success, FINALIZADA: C.info,
