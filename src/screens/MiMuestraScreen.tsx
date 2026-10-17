@@ -17,6 +17,7 @@ function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number)
 
 const CACHE_KEY_MUESTRA = "mias_v1";
 const CACHE_KEY_GEO = "geo_cfg_v1";
+const CACHE_KEY_AUTO = "autoasignacion_v1";
 // Valores por defecto del servidor; se reemplazan por los reales (GET /api/visitas/config).
 const GEO_DEFAULT = { radio: 100, precision: 100 };
 
@@ -36,6 +37,8 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   const [errorDisponibles, setErrorDisponibles] = useState("");
   const [claimingId, setClaimingId] = useState<number | null>(null);
   const [geoConfig, setGeoConfig] = useState(GEO_DEFAULT);
+  // El servidor puede apagar «Disponibles / Tomar este caso» (PERMITIR_AUTOASIGNACION=false): entonces el auditor solo trabaja lo que le asignan.
+  const [autoasignacion, setAutoasignacion] = useState(true);
   const [query, setQuery] = useState("");
   const [filtro, setFiltro] = useState<"TODOS" | "MYPE" | "CONSUMO" | "ALTA">("TODOS");
 
@@ -86,11 +89,15 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
 
   useEffect(() => {
     cacheGet<typeof GEO_DEFAULT>(CACHE_KEY_GEO).then((cached) => { if (cached && mounted.current) setGeoConfig(cached.value); });
+    cacheGet<boolean>(CACHE_KEY_AUTO).then((cached) => { if (cached && mounted.current) { setAutoasignacion(cached.value !== false); if (cached.value === false) setVista("mia"); } });
     api<any>("/api/visitas/config")
       .then((r) => {
         const next = { radio: Number(r.data?.geocerca_radio_m) || GEO_DEFAULT.radio, precision: Number(r.data?.precision_maxima_m) || GEO_DEFAULT.precision };
         if (mounted.current) setGeoConfig(next);
         cacheSet(CACHE_KEY_GEO, next);
+        const permitida = r.data?.autoasignacion !== false; // apps/servidores anteriores no lo informan: sigue activa
+        if (mounted.current) { setAutoasignacion(permitida); if (!permitida) setVista("mia"); }
+        cacheSet(CACHE_KEY_AUTO, permitida);
       })
       .catch(() => {});
   }, [api]);
@@ -165,7 +172,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     <Screen refreshControl={<RefreshControl refreshing={vista === "mia" ? refreshing : loadingDisponibles} onRefresh={() => (vista === "mia" ? load(true) : loadDisponibles())} colors={[C.primary]} />}>
       <Header title="Mi muestra" subtitle={vista === "mia" ? `${visiblesMias.length} de ${asignaciones.length} caso(s)` : `${visiblesDisp.length} disponible(s) en tu zona`} />
 
-      <Seg options={[{ id: "mia", label: "Asignados" }, { id: "disponibles", label: "Disponibles en tu zona" }]} value={vista} onChange={setVista} />
+      {autoasignacion ? <Seg options={[{ id: "mia", label: "Asignados" }, { id: "disponibles", label: "Disponibles en tu zona" }]} value={vista} onChange={setVista} /> : null}
 
       <View style={s.search}>
         <MaterialCommunityIcons name="magnify" size={19} color={C.muted} />
@@ -206,7 +213,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
       ) : (
         <>
           {error && !asignaciones.length ? <Empty title="No pudimos cargar tu muestra" text={error} /> : null}
-          {!error && !asignaciones.length ? <Empty title="Sin casos asignados" text="Tu supervisor aún no te asignó una muestra. Revisa «Disponibles en tu zona» para tomar un caso." /> : null}
+          {!error && !asignaciones.length ? <Empty title="Sin casos asignados" text={autoasignacion ? "Tu supervisor aún no te asignó una muestra. Revisa «Disponibles en tu zona» para tomar un caso." : "Tu supervisor aún no te asignó una muestra."} /> : null}
           {!!asignaciones.length && !visiblesMias.length ? <Empty title="Nada para mostrar" text="Ningún caso coincide con la búsqueda o el filtro." /> : null}
           {visiblesMias.map((item) => {
             const exp = item.expediente;
