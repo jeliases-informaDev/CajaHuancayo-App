@@ -1,0 +1,42 @@
+name: Compilar APK (Android)
+
+# Alternativa a EAS Build cuando se agotan sus compilaciones gratuitas del mes. Se lanza a mano:
+#   gh workflow run apk.yml            (o la pestaña Actions de GitHub → «Compilar APK (Android)» → Run workflow)
+# y al terminar el APK queda como artefacto «ChAuditoria-apk» de esa ejecución (gh run download <id>).
+#
+# OJO con la firma: este APK se firma con la clave de depuración que genera Expo, NO con la clave de producción que guarda EAS.
+# Sirve para probar en BlueStacks o en un celular (hay que desinstalar antes la versión de EAS: otra firma no se instala encima).
+# Para subir a Play Store se sigue usando EAS (o se cargan aquí la clave y sus contraseñas como secretos del repositorio).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # La misma dirección del servidor que usa el perfil «preview» de EAS (eas.json): el APK la lleva incorporada.
+      EXPO_PUBLIC_API_URL: https://caja-huancayo-backend-dba8.onrender.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      # Genera la carpeta android/ a partir de app.json (permisos, servicio de ubicación en segundo plano, íconos…).
+      - run: npx expo prebuild --platform android --no-install
+      - name: Compilar el APK de release
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ChAuditoria-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
