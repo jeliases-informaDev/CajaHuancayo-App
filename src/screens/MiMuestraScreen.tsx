@@ -17,7 +17,7 @@ function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number)
 const CACHE_KEY_MUESTRA = "mias_v1";
 const CACHE_KEY_GEO = "geo_cfg_v1";
 // Valores por defecto del servidor; se reemplazan por los reales (GET /api/visitas/config).
-const GEO_DEFAULT = { radio: 300, precision: 100 };
+const GEO_DEFAULT = { radio: 100, precision: 100 };
 
 export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilityChange, currentLocation }: { refreshRevision?: number; onDetailVisibilityChange?: (open: boolean) => void; currentLocation?: { latitude: number; longitude: number } | null }) {
   const { api } = useAuth();
