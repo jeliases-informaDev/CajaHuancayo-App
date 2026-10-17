@@ -11,7 +11,7 @@ const COLA = "ch_web_cola_v1";
 const CACHE = "ch_web_cache_";
 
 export type QueuedVisitInput = {
-  id: string; idExpediente: number; idAsignacion: number | null; fechaHoraCheckin: string; resultado: string; plantilla?: string;
+  id: string; idExpediente: number; idAsignacion: number | null; fechaHoraCheckin: string; resultado: string; plantilla?: string; ubicacionVisitada?: string; indiceNegocio?: number;
   estadoNegocio?: string; propiedadLocal?: string; otrosPasivos?: string; conformidadFinanciera?: Record<string, unknown> | null; firmanteDocumento?: string;
   respuestasCuestionario: Record<string, unknown>; comentarioNegocio: string; comentarioAuditor: string; otrosClientesDomicilio: unknown[]; otrosIngresos: unknown[];
   firma: string; photo1Uri: string; photo2Uri: string; latitude: number; longitude: number; precisionMeters: number | null; mockLocation: boolean; deviceIntegrityOk: boolean;
@@ -75,7 +75,7 @@ async function sincronizar(tokenOverride?: string | null): Promise<SyncResult> {
           client_sync_id: item.id, id_asignacion: item.idAsignacion || undefined, id_expediente: item.idExpediente,
           fecha_hora_checkin: payload.fechaHoraCheckin, latitud: payload.latitude, longitud: payload.longitude,
           precision_metros: payload.precisionMeters ?? undefined, mock_location: payload.mockLocation, device_integrity_ok: payload.deviceIntegrityOk, device_id: deviceId,
-          resultado: payload.resultado, plantilla: payload.plantilla || undefined, estado_negocio: payload.estadoNegocio || undefined, propiedad_local: payload.propiedadLocal || undefined,
+          resultado: payload.resultado, plantilla: payload.plantilla || undefined, ...(payload.ubicacionVisitada === "NEGOCIO" ? { ubicacion_visitada: "NEGOCIO", indice_negocio: payload.indiceNegocio ?? 0 } : {}), estado_negocio: payload.estadoNegocio || undefined, propiedad_local: payload.propiedadLocal || undefined,
           otros_pasivos: payload.otrosPasivos || undefined, conformidad_financiera: payload.conformidadFinanciera || undefined, firmante_documento: payload.firmanteDocumento || undefined,
           respuestas_cuestionario: payload.respuestasCuestionario, comentario_negocio: payload.comentarioNegocio || undefined, comentario_auditor: payload.comentarioAuditor || undefined,
           otros_clientes_domicilio: payload.otrosClientesDomicilio?.length ? payload.otrosClientesDomicilio : undefined,

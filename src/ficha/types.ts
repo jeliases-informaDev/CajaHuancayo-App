@@ -13,6 +13,9 @@ export type OtroIngreso = { origen: string; monto: string };
 
 export type FichaState = {
   resultado: string;
+  // a qué dirección va el auditor (MYPE: domicilio de la persona o un negocio); ver destino.ts
+  destino: "DOMICILIO" | "NEGOCIO";
+  indiceNegocio: number;
   // cuestionario
   entregoDinero: YesNo;
   pagoComision: YesNo;
@@ -47,6 +50,7 @@ export const sinConformidad = (): Conformidad => ({ conforme: null, comentario: 
 
 export const estadoInicial = (documento: string): FichaState => ({
   resultado: "CONFORME",
+  destino: "DOMICILIO", indiceNegocio: 0,
   entregoDinero: null, pagoComision: null, recibioMontoTotal: null,
   conyugeConoce: null, creditosParalelos: null, comparteDinero: null, titularAdministra: null,
   tieneMicroseguro: null, infoMicroseguro: null, conformeMicroseguro: null, comentarioMicroseguro: "",

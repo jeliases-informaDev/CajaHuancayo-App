@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Linking, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../AuthContext";
 import { Avatar, Badge, Card, Empty, Loading, Screen } from "../ui";
 import { C, F, G, shadow } from "../theme";
 import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
+import { comoLlegarA } from "../ficha/destino";
 
 const CACHE_KEY_MUESTRA = "mias_v1";
 
@@ -94,11 +95,7 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
     { key: "mas", label: "Sincronización", icon: "cloud-sync-outline", alerta: porEnviar > 0 },
   ];
 
-  const comoLlegar = () => {
-    const e = siguiente?.a.expediente;
-    const destino = e?.latitud != null && Number.isFinite(Number(e.latitud)) ? `${e.latitud},${e.longitud}` : encodeURIComponent([e?.direccion_domicilio, e?.distrito].filter(Boolean).join(", "));
-    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destino}`);
-  };
+  const comoLlegar = () => { const e = siguiente?.a.expediente; if (e) comoLlegarA(e); };
 
   return (
     <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[C.primary]} />}>

@@ -18,6 +18,7 @@ import { Callout } from "./controls";
 import { PasoCierre, PasoCuestionario, PasoEvaluacion, PasoEvidencias, PasoNegocio, PasoOtros, PasoVerificacion } from "./Pasos";
 import Referencia, { TabRef } from "./Referencia";
 import { estadoInicial, FichaState, GeoConfig, StepId } from "./types";
+import { puntoElegido, puntosDe, tieneCoordenadas } from "./destino";
 import { distanciaTexto, pasoCompleto, validarEnvio } from "./validacion";
 
 const DRAFT_KEY = (idExpediente: number) => `draft_v2_${idExpediente}`;
@@ -63,10 +64,14 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
 
   const set = useCallback((patch: Partial<FichaState>) => setS((prev) => ({ ...prev, ...patch })), []);
 
-  const tieneCoord = expediente.latitud != null && expediente.longitud != null && Number.isFinite(Number(expediente.latitud)) && Number.isFinite(Number(expediente.longitud));
+  // Dirección que se visita: el domicilio de la persona o, en MYPE, un negocio (la distancia y la regla de 100 m van contra ella).
+  const puntos = useMemo(() => puntosDe(expediente), [expediente]);
+  const punto = useMemo(() => puntoElegido(expediente, s.destino, s.indiceNegocio), [expediente, s.destino, s.indiceNegocio]);
+  const tieneCoord = tieneCoordenadas(punto);
+  const lugar = punto.tipo === "NEGOCIO" ? "negocio" : "domicilio";
   const distanciaM = useMemo(
-    () => (tieneCoord && currentLocation ? distanciaMetros(Number(expediente.latitud), Number(expediente.longitud), currentLocation.latitude, currentLocation.longitude) : null),
-    [tieneCoord, currentLocation, expediente.latitud, expediente.longitud],
+    () => (tieneCoord && currentLocation ? distanciaMetros(punto.lat as number, punto.lng as number, currentLocation.latitude, currentLocation.longitude) : null),
+    [tieneCoord, currentLocation, punto],
   );
 
   // La ficha muestra datos del cliente, sus fotos y su firma: sin capturas ni grabación de pantalla.
@@ -183,13 +188,13 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
       // el auditor la ve al instante (incluso sin señal) en vez de un rechazo horas después.
       if (fix.mocked) throw new Error("Se detectó una ubicación simulada (Fake GPS). Desactívala para poder registrar la visita.");
       if (!integrity.ok) throw new Error("Este dispositivo no pasa la verificación de integridad (emulador, root o jailbreak). No se puede registrar la visita.");
-      const distancia = tieneCoord ? distanciaMetros(Number(expediente.latitud), Number(expediente.longitud), fix.latitude, fix.longitude) : null;
+      const distancia = tieneCoord ? distanciaMetros(punto.lat as number, punto.lng as number, fix.latitude, fix.longitude) : null;
       const motivos: string[] = [];
-      if (distancia != null && distancia > geo.radio) motivos.push(`estás a ${distanciaTexto(distancia)} del domicilio (máximo ${geo.radio} m)`);
+      if (distancia != null && distancia > geo.radio) motivos.push(`estás a ${distanciaTexto(distancia)} del ${lugar} (máximo ${geo.radio} m)`);
       if (fix.accuracy != null && fix.accuracy > geo.precision) motivos.push(`el GPS tiene una precisión de ${Math.round(fix.accuracy)} m (máximo ${geo.precision} m)`);
       const ubicacionObservada = motivos.join("; ");
       if (motivos.length && s.resultado === "CONFORME") {
-        throw new Error(`No puedes registrar CONFORME: ${ubicacionObservada}. Acércate al domicilio y espera a que el GPS se estabilice, o elige otro resultado (Observado / No ubicado) y explica el motivo en el comentario.`);
+        throw new Error(`No puedes registrar CONFORME: ${ubicacionObservada}. Acércate al ${lugar} y espera a que el GPS se estabilice, o elige otro resultado (Observado / No ubicado) y explica el motivo en el comentario.`);
       }
       const problema = validarEnvio(s, plantilla, distancia, geo.radio);
       if (problema) { irAPaso(problema.paso); throw new Error(problema.mensaje); }
@@ -218,6 +223,8 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
         fechaHoraCheckin: new Date().toISOString(),
         resultado: s.resultado,
         plantilla,
+        ubicacionVisitada: punto.tipo,
+        indiceNegocio: punto.indice,
         respuestasCuestionario: respuestas,
         comentarioNegocio: s.comentarioNegocio.trim(),
         comentarioAuditor: s.comentarioAuditor.trim(),
@@ -324,7 +331,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
           {restaurado ? <Callout tipo="info">Recuperamos el avance que dejaste en esta ficha.</Callout> : null}
 
           {actual.id === "verificacion" ? (
-            <PasoVerificacion expediente={expediente} plantilla={plantilla} distanciaM={distanciaM} geo={geo} onVerBase={() => setVerBase("cliente")} onNoUbicado={() => { set({ resultado: "NO_UBICADO" }); irAPaso("cierre"); }} />
+            <PasoVerificacion expediente={expediente} plantilla={plantilla} punto={punto} puntos={puntos} onElegir={(p) => set({ destino: p.tipo, indiceNegocio: p.indice })} distanciaM={distanciaM} geo={geo} onVerBase={() => setVerBase("cliente")} onNoUbicado={() => { set({ resultado: "NO_UBICADO" }); irAPaso("cierre"); }} />
           ) : null}
           {actual.id === "negocio" ? <PasoNegocio s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("negocio")} /> : null}
           {actual.id === "evaluacion" ? <PasoEvaluacion s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("evaluacion")} /> : null}

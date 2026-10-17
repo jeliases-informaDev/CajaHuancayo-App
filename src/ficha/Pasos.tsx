@@ -6,6 +6,8 @@ import SignaturePad from "../SignaturePad";
 import { BaseCard, CampoCard, Callout, Chips, ReadRow, TextField, YesNoRow } from "./controls";
 import { ESTADOS_NEGOCIO, EXIGE_FICHA, PROPIEDADES_LOCAL, RESULTADOS, TEMA } from "./config";
 import { bloqueosConforme, distanciaTexto, validarEnvio } from "./validacion";
+import { abrirRuta, tieneCoordenadas } from "./destino";
+import type { Punto } from "./destino";
 import type { Conformidad, FichaState, GeoConfig, OtroCliente, OtroIngreso, Plantilla, StepId } from "./types";
 
 type Set = (patch: Partial<FichaState>) => void;
@@ -19,31 +21,50 @@ const ORIGEN_UBICACION: Record<string, string> = {
 const num = (v: any) => (v === null || v === undefined || v === "" || Number.isNaN(Number(v)) ? "-" : Number(v).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 
 // ---------------------------------------------------------------- 1. Verificación
-export function PasoVerificacion({ expediente, plantilla, distanciaM, geo, onVerBase, onNoUbicado }: {
-  expediente: any; plantilla: Plantilla; distanciaM: number | null; geo: GeoConfig; onVerBase: () => void; onNoUbicado: () => void;
+export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegir, distanciaM, geo, onVerBase, onNoUbicado }: {
+  expediente: any; plantilla: Plantilla; punto: Punto; puntos: Punto[]; onElegir: (p: Punto) => void; distanciaM: number | null; geo: GeoConfig; onVerBase: () => void; onNoUbicado: () => void;
 }) {
   const e = expediente;
   const c = e.datos_cliente || {};
   const cr = e.datos_credito || {};
   const n = e.datos_negocio || {};
-  const tieneCoord = e.latitud != null && e.longitud != null && Number.isFinite(Number(e.latitud));
-  const telefono = e.telefono_cliente || c.telefono_celular || c.telefono_fijo;
-  const direccion = [e.direccion_domicilio, e.distrito, e.provincia].filter(Boolean).join(", ");
-  const comoLlegar = () => {
-    const destino = tieneCoord ? `${e.latitud},${e.longitud}` : encodeURIComponent(direccion);
-    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destino}`);
-  };
+  const tieneCoord = tieneCoordenadas(punto);
+  const alNegocio = punto.tipo === "NEGOCIO";
+  const lugar = alNegocio ? "negocio" : "domicilio";
+  const negocio = alNegocio ? (n.negocios || [])[punto.indice] || {} : null;
+  const telefono = alNegocio ? negocio.telefono || e.telefono_cliente || c.telefono_celular : e.telefono_cliente || c.telefono_celular || c.telefono_fijo;
   return (
     <>
+      {puntos.length > 1 ? (
+        <BaseCard title="¿A qué dirección vas?" hint="Elige a cuál visitas y puedes cambiar en cualquier momento. La distancia y la regla de los 100 m se miden contra la que elijas.">
+          <Chips
+            options={puntos.map((p) => ({ value: `${p.tipo}:${p.indice}`, label: p.etiqueta }))}
+            value={`${punto.tipo}:${punto.indice}`}
+            onChange={(v) => { const p = puntos.find((x) => `${x.tipo}:${x.indice}` === v); if (p) onElegir(p); }}
+          />
+        </BaseCard>
+      ) : null}
+
       <BaseCard title="Cliente a visitar">
         <Text style={s.cliente}>{e.nombres_cliente}</Text>
         <ReadRow label="Documento" value={`${e.tipo_documento_cliente || "DNI"} ${e.numero_documento_cliente}`} />
-        <ReadRow label="Dirección" value={e.direccion_domicilio} />
-        <ReadRow label="Distrito / provincia" value={`${e.distrito || "-"} / ${e.provincia || "-"}`} />
-        <ReadRow label="Referencia" value={c.referencia_domicilio} />
+        {alNegocio ? (
+          <>
+            <ReadRow label="Dirección del negocio" value={negocio.direccion} />
+            <ReadRow label="Distrito" value={negocio.distrito || e.distrito} />
+            <ReadRow label="Referencia" value={negocio.referencia} />
+            <ReadRow label="Contacto en el negocio" value={negocio.contacto} />
+          </>
+        ) : (
+          <>
+            <ReadRow label="Dirección" value={e.direccion_domicilio} />
+            <ReadRow label="Distrito / provincia" value={`${e.distrito || "-"} / ${e.provincia || "-"}`} />
+            <ReadRow label="Referencia" value={c.referencia_domicilio} />
+          </>
+        )}
         {plantilla === "MYPE_V1" ? <ReadRow label="Actividad" value={n.actividad} /> : null}
         <View style={s.actions}>
-          <Pressable onPress={comoLlegar} style={s.actionBtn}><MaterialCommunityIcons name="directions" size={16} color={C.primary} /><Text style={s.actionText}>Cómo llegar</Text></Pressable>
+          <Pressable onPress={() => abrirRuta(punto)} style={s.actionBtn}><MaterialCommunityIcons name="directions" size={16} color={C.primary} /><Text style={s.actionText}>Cómo llegar</Text></Pressable>
           {telefono ? <Pressable onPress={() => Linking.openURL(`tel:${String(telefono).replace(/[^\d+]/g, "")}`)} style={s.actionBtn}><MaterialCommunityIcons name="phone-outline" size={16} color={C.primary} /><Text style={s.actionText}>Llamar</Text></Pressable> : null}
         </View>
       </BaseCard>
@@ -51,18 +72,18 @@ export function PasoVerificacion({ expediente, plantilla, distanciaM, geo, onVer
       <BaseCard title="Ubicación de referencia">
         {tieneCoord ? (
           <>
-            <ReadRow label="Origen" value={ORIGEN_UBICACION[e.ubicacion_origen] || "Coordenadas registradas"} />
+            <ReadRow label="Origen" value={ORIGEN_UBICACION[punto.origen || ""] || "Coordenadas registradas"} />
             {distanciaM != null ? (
               <View style={[s.dist, { backgroundColor: distanciaM <= geo.radio ? "#EAFBF5" : "#FFF1F2" }]}>
                 <MaterialCommunityIcons name={distanciaM <= geo.radio ? "map-marker-check-outline" : "map-marker-alert-outline"} size={18} color={distanciaM <= geo.radio ? C.success : C.danger} />
                 <Text style={[s.distText, { color: distanciaM <= geo.radio ? "#0A7A56" : "#B42318" }]}>
-                  Estás a {distanciaTexto(distanciaM)} del domicilio {distanciaM <= geo.radio ? "(dentro del rango)" : `(el máximo es ${geo.radio} m)`}
+                  Estás a {distanciaTexto(distanciaM)} del {lugar} {distanciaM <= geo.radio ? "(dentro del rango)" : `(el máximo es ${geo.radio} m)`}
                 </Text>
               </View>
-            ) : <Text style={s.mini}>Activa el GPS para ver tu distancia al domicilio.</Text>}
+            ) : <Text style={s.mini}>Activa el GPS para ver tu distancia al {lugar}.</Text>}
           </>
         ) : (
-          <Callout tipo="info">La base no trae coordenadas de este domicilio. Si la visita sale limpia, tu ubicación quedará como referencia (se registra en el historial del expediente).</Callout>
+          <Callout tipo="info">La base no trae coordenadas de este {lugar}. Si la visita sale limpia, tu ubicación quedará como referencia (se registra en el historial del expediente).</Callout>
         )}
       </BaseCard>
 

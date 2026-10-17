@@ -24,7 +24,7 @@ export function bloqueosConforme(s: FichaState, plantilla: Plantilla, distanciaM
     if (s.estadoNegocio && s.estadoNegocio !== "EN_FUNCIONAMIENTO") motivos.push("el negocio no está en funcionamiento");
     if ((["ingresos", "balance", "resultados"] as const).some((k) => s.conf[k].conforme === false)) motivos.push("hay observaciones en la evaluación financiera");
   }
-  if (distanciaM != null && distanciaM > radio) motivos.push(`estás a ${distanciaTexto(distanciaM)} del domicilio (máximo ${radio} m)`);
+  if (distanciaM != null && distanciaM > radio) motivos.push(`estás a ${distanciaTexto(distanciaM)} del ${s.destino === "NEGOCIO" ? "negocio" : "domicilio"} (máximo ${radio} m)`);
   return motivos;
 }
 

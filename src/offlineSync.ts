@@ -21,6 +21,8 @@ export type QueuedVisitInput = {
   fechaHoraCheckin: string;
   resultado: string;
   plantilla?: string;
+  ubicacionVisitada?: string; // DOMICILIO | NEGOCIO (MYPE: a qué dirección fue el auditor)
+  indiceNegocio?: number;
   estadoNegocio?: string;
   propiedadLocal?: string;
   otrosPasivos?: string;
@@ -235,6 +237,8 @@ async function synchronize(tokenOverride?: string | null): Promise<SyncResult> {
             device_id: deviceId,
             resultado: payload.resultado,
             plantilla: payload.plantilla || undefined,
+            // solo se envía cuando va al negocio: así una visita al domicilio sigue siendo compatible con servidores anteriores
+            ...(payload.ubicacionVisitada === "NEGOCIO" ? { ubicacion_visitada: "NEGOCIO", indice_negocio: payload.indiceNegocio ?? 0 } : {}),
             estado_negocio: payload.estadoNegocio || undefined,
             propiedad_local: payload.propiedadLocal || undefined,
             otros_pasivos: payload.otrosPasivos || undefined,
@@ -296,6 +300,8 @@ export async function enqueueVisit(input: QueuedVisitInput) {
     fechaHoraCheckin: input.fechaHoraCheckin,
     resultado: input.resultado,
     plantilla: input.plantilla,
+    ubicacionVisitada: input.ubicacionVisitada,
+    indiceNegocio: input.indiceNegocio,
     estadoNegocio: input.estadoNegocio,
     propiedadLocal: input.propiedadLocal,
     otrosPasivos: input.otrosPasivos,

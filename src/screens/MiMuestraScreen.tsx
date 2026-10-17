@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
 import { Avatar, Badge, Empty, Header, Loading, Screen, Seg } from "../ui";
 import { C, shadow } from "../theme";
 import FichaWizard from "../ficha/FichaWizard";
+import { comoLlegarA } from "../ficha/destino";
 import { cacheGet, cacheSet } from "../offlineSync";
 
 function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -144,12 +145,8 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     const m = distanciaMetros(currentLocation.latitude, currentLocation.longitude, lat, lng);
     return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
   };
-  const comoLlegar = (exp: any) => {
-    const tiene = exp.latitud != null && Number.isFinite(Number(exp.latitud)) && Number.isFinite(Number(exp.longitud));
-    const destino = tiene ? `${exp.latitud},${exp.longitud}` : encodeURIComponent([exp.direccion_domicilio, exp.distrito].filter(Boolean).join(", "));
-    const origen = currentLocation ? `&origin=${currentLocation.latitude},${currentLocation.longitude}` : "";
-    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destino}${origen}`);
-  };
+  // En MYPE con negocio pregunta a qué dirección va (domicilio o negocio); en los demás casos va directo.
+  const comoLlegar = (exp: any) => comoLlegarA(exp, currentLocation);
 
   const Etiqueta = ({ exp }: { exp: any }) => {
     const mype = exp.tipo_credito === "OTROS";
