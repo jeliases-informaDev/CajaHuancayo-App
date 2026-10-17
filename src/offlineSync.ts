@@ -175,7 +175,8 @@ async function evidenceKey(photoUri: string, idExpediente: number, tipo: "FOTO_P
   const upload = await FileSystem.uploadAsync(signed.data.uploadUrl, photoUri, {
     httpMethod: "PUT",
     uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-    headers: { "Content-Type": signed.data.contentType },
+    // La subida pasa por la misma API que el resto: exige la sesión del auditor y su dispositivo (sin esto el servidor responde 401).
+    headers: { "Content-Type": signed.data.contentType, Authorization: `Bearer ${token}`, "x-client-platform": "mobile", "x-device-id": deviceId },
   });
   if (upload.status < 200 || upload.status >= 300) {
     const body = (() => { try { return JSON.parse(upload.body); } catch { return null; } })();

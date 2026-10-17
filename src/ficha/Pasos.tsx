@@ -5,7 +5,7 @@ import { C, money } from "../theme";
 import SignaturePad from "../SignaturePad";
 import { BaseCard, CampoCard, Callout, Chips, ReadRow, TextField, YesNoRow } from "./controls";
 import { ESTADOS_NEGOCIO, EXIGE_FICHA, PROPIEDADES_LOCAL, RESULTADOS, TEMA } from "./config";
-import { bloqueosConforme, validarEnvio } from "./validacion";
+import { bloqueosConforme, distanciaTexto, validarEnvio } from "./validacion";
 import type { Conformidad, FichaState, GeoConfig, OtroCliente, OtroIngreso, Plantilla, StepId } from "./types";
 
 type Set = (patch: Partial<FichaState>) => void;
@@ -56,7 +56,7 @@ export function PasoVerificacion({ expediente, plantilla, distanciaM, geo, onVer
               <View style={[s.dist, { backgroundColor: distanciaM <= geo.radio ? "#EAFBF5" : "#FFF1F2" }]}>
                 <MaterialCommunityIcons name={distanciaM <= geo.radio ? "map-marker-check-outline" : "map-marker-alert-outline"} size={18} color={distanciaM <= geo.radio ? C.success : C.danger} />
                 <Text style={[s.distText, { color: distanciaM <= geo.radio ? "#0A7A56" : "#B42318" }]}>
-                  Estás a {Math.round(distanciaM)} m del domicilio {distanciaM <= geo.radio ? "(dentro del rango)" : `(el máximo es ${geo.radio} m)`}
+                  Estás a {distanciaTexto(distanciaM)} del domicilio {distanciaM <= geo.radio ? "(dentro del rango)" : `(el máximo es ${geo.radio} m)`}
                 </Text>
               </View>
             ) : <Text style={s.mini}>Activa el GPS para ver tu distancia al domicilio.</Text>}

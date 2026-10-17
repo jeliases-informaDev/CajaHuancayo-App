@@ -18,7 +18,7 @@ import { Callout } from "./controls";
 import { PasoCierre, PasoCuestionario, PasoEvaluacion, PasoEvidencias, PasoNegocio, PasoOtros, PasoVerificacion } from "./Pasos";
 import Referencia, { TabRef } from "./Referencia";
 import { estadoInicial, FichaState, GeoConfig, StepId } from "./types";
-import { pasoCompleto, validarEnvio } from "./validacion";
+import { distanciaTexto, pasoCompleto, validarEnvio } from "./validacion";
 
 const DRAFT_KEY = (idExpediente: number) => `draft_v2_${idExpediente}`;
 
@@ -98,6 +98,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
     const destino = Math.max(0, Math.min(pasos.length - 1, n));
     setIdx(destino);
     setVisitados((prev) => new Set(prev).add(pasos[destino].id));
+    setRestaurado(false); // el aviso de «avance recuperado» solo acompaña al paso donde se retomó
     setError("");
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [pasos]);
@@ -143,10 +144,13 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
       const captured = await cameraRef.current.takePictureAsync({ quality: 0.8, skipProcessing: false });
       if (!captured?.uri) throw new Error("La cámara no devolvió una fotografía válida.");
       const compressed = await manipulateAsync(captured.uri, [{ resize: { width: 1024 } }], { compress: 0.65, format: SaveFormat.JPEG });
-      const directory = `${FileSystem.documentDirectory}evidence-drafts`;
-      await FileSystem.makeDirectoryAsync(directory, { intermediates: true }).catch(() => {});
-      const persistentUri = `${directory}/expediente-${idExpediente}-foto-${slot}-${Date.now()}.jpg`;
-      await FileSystem.copyAsync({ from: compressed.uri, to: persistentUri });
+      let persistentUri = compressed.uri; // en el navegador (solo pruebas) la foto se queda como data URI
+      if (Platform.OS !== "web") {
+        const directory = `${FileSystem.documentDirectory}evidence-drafts`;
+        await FileSystem.makeDirectoryAsync(directory, { intermediates: true }).catch(() => {});
+        persistentUri = `${directory}/expediente-${idExpediente}-foto-${slot}-${Date.now()}.jpg`;
+        await FileSystem.copyAsync({ from: compressed.uri, to: persistentUri });
+      }
       set(slot === 1 ? { photo: persistentUri } : { photo2: persistentUri });
       setCameraSlot(null);
     } catch (e: any) {
@@ -181,7 +185,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
       if (!integrity.ok) throw new Error("Este dispositivo no pasa la verificación de integridad (emulador, root o jailbreak). No se puede registrar la visita.");
       const distancia = tieneCoord ? distanciaMetros(Number(expediente.latitud), Number(expediente.longitud), fix.latitude, fix.longitude) : null;
       const motivos: string[] = [];
-      if (distancia != null && distancia > geo.radio) motivos.push(`estás a ${Math.round(distancia)} m del domicilio (máximo ${geo.radio} m)`);
+      if (distancia != null && distancia > geo.radio) motivos.push(`estás a ${distanciaTexto(distancia)} del domicilio (máximo ${geo.radio} m)`);
       if (fix.accuracy != null && fix.accuracy > geo.precision) motivos.push(`el GPS tiene una precisión de ${Math.round(fix.accuracy)} m (máximo ${geo.precision} m)`);
       const ubicacionObservada = motivos.join("; ");
       if (motivos.length && s.resultado === "CONFORME") {
@@ -317,7 +321,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.body}>
           <Text style={st.stepTitle}>{actual.titulo}</Text>
-          {restaurado && idx === 0 ? <Callout tipo="info">Recuperamos el avance que dejaste en esta ficha.</Callout> : null}
+          {restaurado ? <Callout tipo="info">Recuperamos el avance que dejaste en esta ficha.</Callout> : null}
 
           {actual.id === "verificacion" ? (
             <PasoVerificacion expediente={expediente} plantilla={plantilla} distanciaM={distanciaM} geo={geo} onVerBase={() => setVerBase("cliente")} onNoUbicado={() => { set({ resultado: "NO_UBICADO" }); irAPaso("cierre"); }} />

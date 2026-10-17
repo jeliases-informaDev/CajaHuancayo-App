@@ -6,6 +6,9 @@ import type { FichaState, Plantilla, StepId } from "./types";
 
 export type Problema = { paso: StepId; mensaje: string };
 
+// 199308 m no se lee: de 1 km en adelante se muestra en kilómetros.
+export const distanciaTexto = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+
 export const cuestionarioBasico = (s: FichaState) => s.entregoDinero !== null && s.pagoComision !== null && s.recibioMontoTotal !== null;
 
 const conformidadCompleta = (s: FichaState) =>
@@ -21,7 +24,7 @@ export function bloqueosConforme(s: FichaState, plantilla: Plantilla, distanciaM
     if (s.estadoNegocio && s.estadoNegocio !== "EN_FUNCIONAMIENTO") motivos.push("el negocio no está en funcionamiento");
     if ((["ingresos", "balance", "resultados"] as const).some((k) => s.conf[k].conforme === false)) motivos.push("hay observaciones en la evaluación financiera");
   }
-  if (distanciaM != null && distanciaM > radio) motivos.push(`estás a ${Math.round(distanciaM)} m del domicilio (máximo ${radio} m)`);
+  if (distanciaM != null && distanciaM > radio) motivos.push(`estás a ${distanciaTexto(distanciaM)} del domicilio (máximo ${radio} m)`);
   return motivos;
 }
 
