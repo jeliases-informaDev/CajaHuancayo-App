@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../AuthContext";
@@ -7,6 +7,7 @@ import { Avatar, Badge, Card, Empty, Loading, Screen } from "../ui";
 import { C, F, G, shadow } from "../theme";
 import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
 import { comoLlegarA } from "../ficha/destino";
+import { inicioDeJornada, iniciarJornada, jornadaDisponible, jornadaEnCurso, terminarJornada } from "../jornada";
 
 const CACHE_KEY_MUESTRA = "mias_v1";
 
@@ -30,6 +31,27 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
   const [error, setError] = useState("");
   const mounted = useRef(true);
   const requestId = useRef(0);
+  // Jornada de campo: mientras está iniciada se comparte la ubicación en segundo plano (ver jornada.ts).
+  const [jornada, setJornada] = useState<{ activa: boolean; desde: string | null }>({ activa: false, desde: null });
+  const [jornadaOcupada, setJornadaOcupada] = useState(false);
+  const [jornadaError, setJornadaError] = useState("");
+  const leerJornada = useCallback(async () => {
+    try { const activa = await jornadaEnCurso(); setJornada({ activa, desde: activa ? await inicioDeJornada() : null }); } catch {}
+  }, []);
+  useEffect(() => { leerJornada(); }, [leerJornada, refreshRevision]);
+  const avisar = (accion: "INICIAR" | "TERMINAR") => () => api("/api/visitas/jornada", { method: "POST", body: JSON.stringify({ accion }) });
+  const alternarJornada = async () => {
+    setJornadaError("");
+    if (jornada.activa) {
+      Alert.alert("¿Terminar la jornada?", "Tu supervisor dejará de ver tu ubicación en tiempo real.", [
+        { text: "Seguir en jornada", style: "cancel" },
+        { text: "Terminar", style: "destructive", onPress: async () => { setJornadaOcupada(true); try { await terminarJornada(avisar("TERMINAR")); } catch (e: any) { setJornadaError(e.message || "No se pudo terminar la jornada."); } finally { setJornadaOcupada(false); leerJornada(); } } },
+      ]);
+      return;
+    }
+    setJornadaOcupada(true);
+    try { await iniciarJornada(avisar("INICIAR")); } catch (e: any) { setJornadaError(e.message || "No se pudo iniciar la jornada."); } finally { setJornadaOcupada(false); leerJornada(); }
+  };
 
   const load = useCallback(async (background = false) => {
     const current = ++requestId.current;
@@ -132,6 +154,27 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
           <View style={s.heroStat}><Text style={s.heroStatNum}>{porEnviar}</Text><Text style={s.heroStatLabel}>Por enviar</Text></View>
         </View>
       </LinearGradient>
+
+      {jornadaDisponible ? (
+        <Card>
+          <View style={s.routeRow}>
+            <View style={[s.routeIcon, jornada.activa ? { backgroundColor: "#E4F7EF" } : { backgroundColor: C.infoBg }]}>
+              <MaterialCommunityIcons name={jornada.activa ? "crosshairs-gps" : "map-marker-radius-outline"} size={24} color={jornada.activa ? C.success : C.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.routeTitle}>{jornada.activa ? "Jornada en curso" : "Jornada de campo"}</Text>
+              <Text style={s.routeSub}>{jornada.activa
+                ? `${jornada.desde ? `Desde las ${new Date(jornada.desde).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}. ` : ""}Tu supervisor ve tu ubicación en tiempo real, también con la pantalla apagada.`
+                : "Inícialas al salir a campo: tu supervisor verá tu ubicación en tiempo real, también con la pantalla apagada o usando el mapa. Solo se comparte durante la jornada."}</Text>
+            </View>
+          </View>
+          {jornadaError ? <Text style={s.jornadaError}>{jornadaError}</Text> : null}
+          <Pressable disabled={jornadaOcupada} onPress={alternarJornada} accessibilityRole="button" style={({ pressed }) => [s.jornadaBtn, jornada.activa ? s.jornadaBtnOff : s.jornadaBtnOn, (pressed || jornadaOcupada) && { opacity: 0.75 }]}>
+            <MaterialCommunityIcons name={jornada.activa ? "stop-circle-outline" : "play-circle-outline"} size={19} color={jornada.activa ? C.danger : "#fff"} />
+            <Text style={[s.jornadaBtnText, jornada.activa && { color: C.danger }]}>{jornadaOcupada ? "Un momento…" : jornada.activa ? "Terminar jornada" : "Iniciar jornada"}</Text>
+          </Pressable>
+        </Card>
+      ) : null}
 
       {error && !asignaciones.length ? (
         <Empty title="No pudimos cargar tu muestra" text={error} />
@@ -256,6 +299,11 @@ const s = StyleSheet.create({
   actionBadge: { position: "absolute", top: 8, right: 8, width: 10, height: 10, borderRadius: 5, backgroundColor: C.danger, borderWidth: 2, borderColor: "#fff" },
   actionLabel: { fontSize: 12.5, fontWeight: "600", color: C.text },
   routeRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  jornadaBtn: { marginTop: 12, height: 46, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  jornadaBtnOn: { backgroundColor: C.primary },
+  jornadaBtnOff: { backgroundColor: C.dangerBg, borderWidth: 1, borderColor: "#F5C6CC" },
+  jornadaBtnText: { color: "#fff", fontSize: 14.5, fontWeight: "700" },
+  jornadaError: { marginTop: 10, color: C.danger, fontSize: 12.5, lineHeight: 17 },
   routeIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: "#E4F7EF", alignItems: "center", justifyContent: "center" },
   routeIconWarn: { backgroundColor: C.warningBg },
   routeTitle: { fontSize: 14.5, fontWeight: "700", color: C.ink },

@@ -1,0 +1,89 @@
+// Jornada de campo: mientras está iniciada, la app sigue enviando la ubicación del auditor al servidor aunque la
+// pantalla esté apagada o esté usando Google Maps para navegar. Android obliga a mostrar una notificación fija
+// durante ese tiempo (servicio en primer plano), así el auditor siempre sabe que se está compartiendo.
+// Solo se comparte entre «Iniciar jornada» y «Terminar jornada»; fuera de ella no se envía nada en segundo plano.
+import { Platform } from "react-native";
+import * as Location from "expo-location";
+import * as SecureStore from "expo-secure-store";
+import * as TaskManager from "expo-task-manager";
+import { API_URL } from "./api";
+import { getDeviceId } from "./deviceIdentity";
+import { cacheGet, cacheSet } from "./offlineSync";
+
+export const JORNADA_TASK = "ch-jornada-ubicacion";
+const TOKEN_KEY = "ch_token";
+const CLAVE_INICIO = "jornada_inicio_local";
+export const jornadaDisponible = Platform.OS === "android" || Platform.OS === "ios";
+
+// Se define al cargar el módulo (index.ts lo importa) para que Android pueda ejecutarla aunque la app esté cerrada.
+TaskManager.defineTask(JORNADA_TASK, async ({ data, error }: any) => {
+  if (error || !data) return;
+  const locations: Location.LocationObject[] = data.locations || [];
+  const ultimo = locations[locations.length - 1];
+  if (!ultimo) return;
+  try {
+    const token = await SecureStore.getItemAsync(TOKEN_KEY);
+    if (!token) { await detenerSeguimiento(); return; } // sin sesión no hay a quién enviar
+    const deviceId = await getDeviceId();
+    const control = new AbortController();
+    const espera = setTimeout(() => control.abort(), 15_000);
+    try {
+      const respuesta = await fetch(`${API_URL}/api/visitas/ubicacion`, {
+        method: "PATCH",
+        signal: control.signal,
+        headers: { Accept: "application/json", "Content-Type": "application/json", "x-client-platform": "mobile", "x-device-id": deviceId, Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ latitud: ultimo.coords.latitude, longitud: ultimo.coords.longitude, precision: ultimo.coords.accuracy, simulada: Boolean((ultimo as any).mocked) }),
+      });
+      // Sesión cerrada o revocada: se apaga el servicio para no seguir con la notificación sin enviar nada.
+      if (respuesta.status === 401 || respuesta.status === 403) await detenerSeguimiento();
+    } finally { clearTimeout(espera); }
+  } catch {
+    // Sin señal: el siguiente punto lo reintenta; el recorrido del día se arma con los que sí llegaron.
+  }
+});
+
+async function detenerSeguimiento() {
+  try { if (await Location.hasStartedLocationUpdatesAsync(JORNADA_TASK)) await Location.stopLocationUpdatesAsync(JORNADA_TASK); } catch {}
+}
+
+export async function jornadaEnCurso(): Promise<boolean> {
+  try { return await Location.hasStartedLocationUpdatesAsync(JORNADA_TASK); } catch { return false; }
+}
+
+export async function inicioDeJornada(): Promise<string | null> {
+  const guardado = await cacheGet<string>(CLAVE_INICIO);
+  return guardado?.value || null;
+}
+
+export async function iniciarJornada(avisarServidor: () => Promise<unknown>): Promise<void> {
+  const servicios = await Location.hasServicesEnabledAsync();
+  if (!servicios) throw new Error("Activa la ubicación (GPS) del dispositivo para iniciar tu jornada.");
+  let primer = await Location.getForegroundPermissionsAsync();
+  if (primer.status !== "granted") primer = await Location.requestForegroundPermissionsAsync();
+  if (primer.status !== "granted") throw new Error("Necesitamos el permiso de ubicación para iniciar tu jornada.");
+  let segundo = await Location.getBackgroundPermissionsAsync();
+  if (segundo.status !== "granted") segundo = await Location.requestBackgroundPermissionsAsync();
+  if (segundo.status !== "granted") {
+    throw new Error("Para seguirte con la pantalla apagada o mientras navegas, elige «Permitir todo el tiempo» en los permisos de ubicación de la app.");
+  }
+  await Location.startLocationUpdatesAsync(JORNADA_TASK, {
+    accuracy: Location.Accuracy.High,
+    timeInterval: 15_000,
+    distanceInterval: 15,
+    pausesUpdatesAutomatically: false,
+    showsBackgroundLocationIndicator: true,
+    foregroundService: {
+      notificationTitle: "Jornada de campo en curso",
+      notificationBody: "Tu supervisor ve tu ubicación en tiempo real hasta que termines la jornada.",
+      notificationColor: "#2d41c4",
+    },
+  });
+  await cacheSet(CLAVE_INICIO, new Date().toISOString());
+  await avisarServidor();
+}
+
+export async function terminarJornada(avisarServidor?: () => Promise<unknown>): Promise<void> {
+  await detenerSeguimiento();
+  await cacheSet(CLAVE_INICIO, null);
+  if (avisarServidor) await avisarServidor();
+}

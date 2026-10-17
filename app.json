@@ -27,7 +27,11 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
         "android.permission.INTERNET",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
@@ -43,7 +47,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Esta app usa tu ubicación para registrar y verificar las visitas de auditoría en campo."
+          "locationWhenInUsePermission": "Esta app usa tu ubicación para registrar y verificar las visitas de auditoría en campo.",
+          "locationAlwaysAndWhenInUsePermission": "Durante tu jornada de campo, la app comparte tu ubicación con tu supervisor aunque la pantalla esté apagada o uses el mapa para navegar. Solo ocurre entre «Iniciar jornada» y «Terminar jornada».",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [

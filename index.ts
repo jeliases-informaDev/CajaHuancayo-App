@@ -1,5 +1,6 @@
 import { registerRootComponent } from 'expo';
 import './src/offlineSync';
+import './src/jornada'; // registra la tarea de ubicación de la jornada de campo
 
 import App from './App';
 

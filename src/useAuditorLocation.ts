@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
 import * as Location from "expo-location";
+import { jornadaEnCurso } from "./jornada";
 
 export type AuditorLocation = {
   latitude: number;
@@ -96,11 +97,14 @@ export function useAuditorLocation(
             setLocation(next);
             const now = Date.now();
             if (now - lastSent < 7000) return;
+            // La ubicación solo se comparte con el supervisor durante la jornada de campo (ver jornada.ts); fuera de ella la app
+            // la usa únicamente en el propio celular (distancias, ficha, mapa).
+            if (!(await jornadaEnCurso())) return;
             lastSent = now;
             try {
               await apiRef.current("/api/visitas/ubicacion", {
                 method: "PATCH",
-                body: JSON.stringify({ latitud: next.latitude, longitud: next.longitude, precision: next.accuracy }),
+                body: JSON.stringify({ latitud: next.latitude, longitud: next.longitude, precision: next.accuracy, simulada: next.mocked }),
               });
             } catch {
               // El GPS sigue activo aunque falle temporalmente el envío.

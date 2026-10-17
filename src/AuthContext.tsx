@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import { terminarJornada } from "./jornada";
 import NetInfo from "@react-native-community/netinfo";
 import { ApiError, request } from "./api";
 import { getDeviceId } from "./deviceIdentity";
@@ -144,6 +145,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await complete(data);
     },
     logout: async () => {
+      // Si dejó una jornada abierta, se termina primero (apaga el seguimiento y avisa al servidor mientras la sesión sigue válida).
+      try { if (token) await terminarJornada(() => request("/api/visitas/jornada", { method: "POST", body: JSON.stringify({ accion: "TERMINAR" }) }, token)); } catch {}
       try { if (token) await request("/api/auth/logout", { method: "POST" }, token); } catch {}
       await clearSession();
     },
