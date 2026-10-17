@@ -11,7 +11,8 @@ const unir = (...partes: any[]) => partes.filter(Boolean).join(", ");
 
 export function puntosDe(e: any): Punto[] {
   const domicilio: Punto = {
-    tipo: "DOMICILIO", indice: 0, etiqueta: "Domicilio", direccion: unir(e.direccion_domicilio, e.distrito),
+    // Con la dirección normalizada (Avenida, Jirón…) Google Maps ubica mejor que con la abreviada de la base.
+    tipo: "DOMICILIO", indice: 0, etiqueta: "Domicilio", direccion: unir(e.direccion_normalizada || e.direccion_domicilio, e.distrito, e.provincia),
     lat: comoNumero(e.latitud), lng: comoNumero(e.longitud), origen: e.ubicacion_origen ?? null,
   };
   if (e.tipo_credito !== "OTROS") return [domicilio];

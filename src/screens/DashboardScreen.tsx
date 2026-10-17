@@ -7,7 +7,7 @@ import { Avatar, Badge, Card, Empty, Loading, Screen } from "../ui";
 import { C, F, G, shadow } from "../theme";
 import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
 import { comoLlegarA } from "../ficha/destino";
-import { inicioDeJornada, iniciarJornada, jornadaDisponible, jornadaEnCurso, terminarJornada } from "../jornada";
+import { inicioDeJornada, iniciarJornada, jornadaDisponible, jornadaEnCurso, reintentarFinPendiente, terminarJornada } from "../jornada";
 
 const CACHE_KEY_MUESTRA = "mias_v1";
 
@@ -38,14 +38,15 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
   const leerJornada = useCallback(async () => {
     try { const activa = await jornadaEnCurso(); setJornada({ activa, desde: activa ? await inicioDeJornada() : null }); } catch {}
   }, []);
-  useEffect(() => { leerJornada(); }, [leerJornada, refreshRevision]);
   const avisar = (accion: "INICIAR" | "TERMINAR") => () => api("/api/visitas/jornada", { method: "POST", body: JSON.stringify({ accion }) });
+  // Si una jornada se terminó sin señal, al volver a abrir la app se le avisa al servidor.
+  useEffect(() => { reintentarFinPendiente(avisar("TERMINAR")).finally(leerJornada); }, [leerJornada, refreshRevision]);
   const alternarJornada = async () => {
     setJornadaError("");
     if (jornada.activa) {
       Alert.alert("¿Terminar la jornada?", "Tu supervisor dejará de ver tu ubicación en tiempo real.", [
         { text: "Seguir en jornada", style: "cancel" },
-        { text: "Terminar", style: "destructive", onPress: async () => { setJornadaOcupada(true); try { await terminarJornada(avisar("TERMINAR")); } catch (e: any) { setJornadaError(e.message || "No se pudo terminar la jornada."); } finally { setJornadaOcupada(false); leerJornada(); } } },
+        { text: "Terminar", style: "destructive", onPress: async () => { setJornadaOcupada(true); try { const avisado = await terminarJornada(avisar("TERMINAR")); if (!avisado) setJornadaError("Jornada terminada en este celular. Tu supervisor lo verá apenas haya conexión."); } catch (e: any) { setJornadaError(e.message || "No se pudo terminar la jornada."); } finally { setJornadaOcupada(false); leerJornada(); } } },
       ]);
       return;
     }
@@ -165,7 +166,7 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
               <Text style={s.routeTitle}>{jornada.activa ? "Jornada en curso" : "Jornada de campo"}</Text>
               <Text style={s.routeSub}>{jornada.activa
                 ? `${jornada.desde ? `Desde las ${new Date(jornada.desde).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}. ` : ""}Tu supervisor ve tu ubicación en tiempo real, también con la pantalla apagada.`
-                : "Inícialas al salir a campo: tu supervisor verá tu ubicación en tiempo real, también con la pantalla apagada o usando el mapa. Solo se comparte durante la jornada."}</Text>
+                : "Inicia la jornada al salir a campo: tu supervisor verá tu ubicación en tiempo real, también con la pantalla apagada o usando el mapa. Solo se comparte durante la jornada."}</Text>
             </View>
           </View>
           {jornadaError ? <Text style={s.jornadaError}>{jornadaError}</Text> : null}

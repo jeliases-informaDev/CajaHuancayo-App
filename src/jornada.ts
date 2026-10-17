@@ -13,6 +13,7 @@ import { cacheGet, cacheSet } from "./offlineSync";
 export const JORNADA_TASK = "ch-jornada-ubicacion";
 const TOKEN_KEY = "ch_token";
 const CLAVE_INICIO = "jornada_inicio_local";
+const CLAVE_FIN_PENDIENTE = "jornada_fin_pendiente"; // se terminó en el celular pero el servidor aún no lo sabe (sin señal)
 export const jornadaDisponible = Platform.OS === "android" || Platform.OS === "ios";
 
 // Se define al cargar el módulo (index.ts lo importa) para que Android pueda ejecutarla aunque la app esté cerrada.
@@ -66,6 +67,9 @@ export async function iniciarJornada(avisarServidor: () => Promise<unknown>): Pr
   if (segundo.status !== "granted") {
     throw new Error("Para seguirte con la pantalla apagada o mientras navegas, elige «Permitir todo el tiempo» en los permisos de ubicación de la app.");
   }
+  // Primero se avisa al servidor (así el supervisor ya sabe que sales) y solo entonces se enciende el seguimiento: si no hay
+  // conexión, la jornada no queda a medias.
+  await avisarServidor();
   await Location.startLocationUpdatesAsync(JORNADA_TASK, {
     accuracy: Location.Accuracy.High,
     timeInterval: 15_000,
@@ -79,11 +83,19 @@ export async function iniciarJornada(avisarServidor: () => Promise<unknown>): Pr
     },
   });
   await cacheSet(CLAVE_INICIO, new Date().toISOString());
-  await avisarServidor();
+  await cacheSet(CLAVE_FIN_PENDIENTE, null);
 }
 
-export async function terminarJornada(avisarServidor?: () => Promise<unknown>): Promise<void> {
+// Apaga el seguimiento en el celular SIEMPRE y avisa al servidor; si no hay señal, el aviso queda pendiente y se reintenta al volver a abrir la app.
+// Devuelve false si el servidor aún no se enteró.
+export async function terminarJornada(avisarServidor?: () => Promise<unknown>): Promise<boolean> {
   await detenerSeguimiento();
   await cacheSet(CLAVE_INICIO, null);
-  if (avisarServidor) await avisarServidor();
+  if (!avisarServidor) return true;
+  try { await avisarServidor(); await cacheSet(CLAVE_FIN_PENDIENTE, null); return true; } catch { await cacheSet(CLAVE_FIN_PENDIENTE, true); return false; }
+}
+
+export async function reintentarFinPendiente(avisarServidor: () => Promise<unknown>): Promise<void> {
+  if (!(await cacheGet<boolean>(CLAVE_FIN_PENDIENTE))?.value) return;
+  try { await avisarServidor(); await cacheSet(CLAVE_FIN_PENDIENTE, null); } catch { /* se reintenta la próxima vez */ }
 }
