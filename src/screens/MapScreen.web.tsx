@@ -14,7 +14,8 @@ import GeoFilterBar, { GEO_FILTRO_TODOS, GeoFiltro, matchesGeoFiltro } from "../
 const filters = ["TODOS", "CONSUMO", "OTROS"] as const;
 const labels: Record<string, string> = { TODOS: "Todos", CONSUMO: "Consumo", OTROS: "Otros (MYPE)" };
 const colors: Record<string, string> = { CONSUMO: "#2563EB", OTROS: "#F59E0B" };
-const CENTER: [number, number] = [-12.0653, -75.2049];
+// Sin casos ni GPS el mapa abre en Lima (la app es de alcance nacional); con puntos se encuadra solo.
+const CENTER: [number, number] = [-12.0464, -77.0428];
 const RUTA_COLOR = "#0ead7a";
 
 // Distancia entre dos coordenadas (Haversine), en metros — mismo criterio que el

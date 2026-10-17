@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
 import * as Location from "expo-location";
 import { jornadaEnCurso } from "./jornada";
+import { estadoBateria } from "./bateria";
 
 export type AuditorLocation = {
   latitude: number;
@@ -104,7 +105,7 @@ export function useAuditorLocation(
             try {
               await apiRef.current("/api/visitas/ubicacion", {
                 method: "PATCH",
-                body: JSON.stringify({ latitud: next.latitude, longitud: next.longitude, precision: next.accuracy, simulada: next.mocked }),
+                body: JSON.stringify({ latitud: next.latitude, longitud: next.longitude, precision: next.accuracy, simulada: next.mocked, ...(await estadoBateria()) }),
               });
             } catch {
               // El GPS sigue activo aunque falle temporalmente el envío.

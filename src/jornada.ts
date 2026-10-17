@@ -9,6 +9,7 @@ import * as TaskManager from "expo-task-manager";
 import { API_URL } from "./api";
 import { getDeviceId } from "./deviceIdentity";
 import { cacheGet, cacheSet } from "./offlineSync";
+import { estadoBateria } from "./bateria";
 
 export const JORNADA_TASK = "ch-jornada-ubicacion";
 const TOKEN_KEY = "ch_token";
@@ -33,7 +34,7 @@ TaskManager.defineTask(JORNADA_TASK, async ({ data, error }: any) => {
         method: "PATCH",
         signal: control.signal,
         headers: { Accept: "application/json", "Content-Type": "application/json", "x-client-platform": "mobile", "x-device-id": deviceId, Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ latitud: ultimo.coords.latitude, longitud: ultimo.coords.longitude, precision: ultimo.coords.accuracy, simulada: Boolean((ultimo as any).mocked) }),
+        body: JSON.stringify({ latitud: ultimo.coords.latitude, longitud: ultimo.coords.longitude, precision: ultimo.coords.accuracy, simulada: Boolean((ultimo as any).mocked), ...(await estadoBateria()) }),
       });
       // Sesión cerrada o revocada: se apaga el servicio para no seguir con la notificación sin enviar nada.
       if (respuesta.status === 401 || respuesta.status === 403) await detenerSeguimiento();
