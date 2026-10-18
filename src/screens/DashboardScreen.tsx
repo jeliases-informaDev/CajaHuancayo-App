@@ -6,6 +6,7 @@ import { useAuth } from "../AuthContext";
 import { Avatar, Badge, Card, Empty, Loading, Screen } from "../ui";
 import { C, F, G, shadow } from "../theme";
 import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
+import { cargarMuestra, type ResumenMuestra } from "../muestra";
 import { comoLlegarA } from "../ficha/destino";
 import { inicioDeJornada, iniciarJornada, jornadaDisponible, jornadaEnCurso, reintentarFinPendiente, terminarJornada } from "../jornada";
 
@@ -24,6 +25,8 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
 }) {
   const { api, user } = useAuth();
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
+  const [resumen, setResumen] = useState<ResumenMuestra | null>(null); // conteos de TODA la muestra, vengan o no cargados todos los casos
+  const ultimaGuardada = useRef<any[] | null>(null);
   const [pendientesSync, setPendientesSync] = useState(0);
   const [rechazadas, setRechazadas] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -54,7 +57,7 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
     try { await iniciarJornada(avisar("INICIAR")); } catch (e: any) { setJornadaError(e.message || "No se pudo iniciar la jornada."); } finally { setJornadaOcupada(false); leerJornada(); }
   };
 
-  const load = useCallback(async (background = false) => {
+  const load = useCallback(async (background = false, forzar = false) => {
     const current = ++requestId.current;
     if (background) setRefreshing(true);
     // El conteo de pendientes es local (SQLite) y no debe poder bloquear la carga de
@@ -66,11 +69,12 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
       .then((list) => { if (mounted.current && current === requestId.current) setRechazadas(list.length); })
       .catch(() => {});
     try {
-      const r: any = await api("/api/asignaciones/mias");
+      const m = await cargarMuestra(api, { forzar });
       if (!mounted.current || current !== requestId.current) return;
-      setAsignaciones(r.data || []);
+      setAsignaciones(m.data);
+      setResumen(m.resumen);
       setError("");
-      cacheSet(CACHE_KEY_MUESTRA, r.data || []);
+      if (ultimaGuardada.current !== m.data) { ultimaGuardada.current = m.data; cacheSet(CACHE_KEY_MUESTRA, m.data); } // no se reescribe el caché si nada cambió
     } catch (e: any) {
       if (mounted.current && current === requestId.current) setError(e.message);
     } finally {
@@ -88,14 +92,15 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
     const timer = setInterval(() => load(true), 20000);
     return () => { mounted.current = false; clearInterval(timer); };
   }, [load]);
-  useEffect(() => { if (refreshRevision > 0) load(true); }, [refreshRevision, load]);
+  useEffect(() => { if (refreshRevision > 0) load(true, true); }, [refreshRevision, load]);
 
   if (loading && !asignaciones.length) return <Loading />;
 
   const consumo = asignaciones.filter((a) => a.expediente?.tipo_credito === "CONSUMO").length;
   const otros = asignaciones.filter((a) => a.expediente?.tipo_credito === "OTROS").length;
   const altaPrioridad = asignaciones.filter((a) => a.prioridad === "ALTA");
-  const stats: Record<string, number> = { total: asignaciones.length, alta: altaPrioridad.length, consumo, otros };
+  // Los conteos salen del resumen del servidor (todo el universo); sin él (servidor anterior) se cuentan los casos cargados.
+  const stats: Record<string, number> = resumen ? { total: resumen.total, alta: resumen.ALTA, consumo: resumen.CONSUMO, otros: resumen.OTROS } : { total: asignaciones.length, alta: altaPrioridad.length, consumo, otros };
 
   // "Siguiente caso": primero los de prioridad alta; si hay ubicación, el más cercano de ese grupo.
   const candidatos = altaPrioridad.length ? altaPrioridad : asignaciones;
@@ -121,7 +126,7 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
   const comoLlegar = () => { const e = siguiente?.a.expediente; if (e) comoLlegarA(e); };
 
   return (
-    <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[C.primary]} />}>
+    <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true, true)} colors={[C.primary]} />}>
       <View style={s.greetRow}>
         <View style={{ flex: 1 }}>
           <Text style={s.date}>{fecha}</Text>

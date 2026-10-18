@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../AuthContext";
 import { C } from "../theme";
 import GeoFilterBar, { GEO_FILTRO_TODOS, GeoFiltro, matchesGeoFiltro } from "../components/GeoFilterBar";
+import { cargarMuestra } from "../muestra";
 
 const filters = ["TODOS", "CONSUMO", "OTROS"];
 const labels: Record<string, string> = {
@@ -156,6 +157,8 @@ export default function MapScreen({ refreshRevision = 0, currentLocation }: { re
   const [filter, setFilter] = useState("TODOS");
   const [geoFiltro, setGeoFiltro] = useState<GeoFiltro>(GEO_FILTRO_TODOS);
   const [all, setAll] = useState<any[]>([]);
+  const ultimaCarga = useRef<any[] | null>(null);
+  const [incompleto, setIncompleto] = useState<{ cargados: number; total: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const points = useMemo(
@@ -212,11 +215,15 @@ export default function MapScreen({ refreshRevision = 0, currentLocation }: { re
     setLoading(true);
     try {
       setError("");
-      const response: any = await api("/api/asignaciones/mias");
-      const next = (response.data || [])
-        .map(normalizePoint)
-        .filter((point: any) => Number.isFinite(point.latitud) && Number.isFinite(point.longitud));
-      setAll(next);
+      // Por páginas y en versión ligera; si la muestra no cambió se devuelve la misma lista y el mapa no se vuelve a armar.
+      const m = await cargarMuestra(api, { ligero: true });
+      setIncompleto(m.completa ? null : { cargados: m.data.length, total: m.total });
+      if (ultimaCarga.current !== m.data) {
+        ultimaCarga.current = m.data;
+        setAll(m.data
+          .map(normalizePoint)
+          .filter((point: any) => Number.isFinite(point.latitud) && Number.isFinite(point.longitud)));
+      }
     } catch (e: any) {
       setError(e.message || "No se pudo cargar el mapa.");
     } finally {
@@ -276,6 +283,7 @@ export default function MapScreen({ refreshRevision = 0, currentLocation }: { re
                 <Text style={s.resumenTexto}>Siguiente: <Text style={s.negrita}>{resumen.siguiente.nombres}</Text> · {fmtDistancia(resumen.siguiente.distancia)}{resumen.rutaM > 0 ? ` · ruta de ${fmtDistancia(resumen.rutaM)}` : ""}</Text>
               ) : null}
               {resumen.lejanos > 0 ? <Text style={s.resumenApagado}>{resumen.lejanos} {resumen.lejanos === 1 ? "caso está" : "casos están"} a más de 60 km de ti</Text> : null}
+              {incompleto ? <Text style={s.resumenApagado}>Mostrando {incompleto.cargados} de {incompleto.total} casos: acércate a una zona para verlos todos</Text> : null}
             </View>
             <Pressable onPress={verTodo} style={s.verTodo}><Text style={s.verTodoTxt}>Ver todo</Text></Pressable>
           </View>
