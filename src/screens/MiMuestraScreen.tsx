@@ -8,6 +8,7 @@ import FichaWizard from "../ficha/FichaWizard";
 import { comoLlegarA } from "../ficha/destino";
 import { cacheGet, cacheSet } from "../offlineSync";
 import { cargarMuestra } from "../muestra";
+import { recordarEmpresa } from "../empresa";
 
 function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371000;
@@ -116,6 +117,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
       .then((r) => {
         const next = { radio: Number(r.data?.geocerca_radio_m) || GEO_DEFAULT.radio, precision: Number(r.data?.precision_maxima_m) || GEO_DEFAULT.precision };
         if (mounted.current) setGeoConfig(next);
+        if (r.data?.empresa) recordarEmpresa(r.data.empresa);
         cacheSet(CACHE_KEY_GEO, next);
         const permitida = r.data?.autoasignacion !== false; // apps/servidores anteriores no lo informan: sigue activa
         autoasignacionFresca.current = true;
