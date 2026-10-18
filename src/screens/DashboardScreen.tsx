@@ -7,6 +7,7 @@ import { Avatar, Badge, Card, Empty, Loading, Screen } from "../ui";
 import { C, F, G, shadow } from "../theme";
 import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
 import { cargarMuestra, type ResumenMuestra } from "../muestra";
+import { nombreDeEmpresa, useEmpresa } from "../empresa";
 import { comoLlegarA } from "../ficha/destino";
 import { inicioDeJornada, iniciarJornada, jornadaDisponible, jornadaEnCurso, reintentarFinPendiente, terminarJornada } from "../jornada";
 
@@ -24,6 +25,7 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
   refreshRevision?: number; onNavigate?: (tab: string) => void; currentLocation?: { latitude: number; longitude: number } | null;
 }) {
   const { api, user } = useAuth();
+  const empresa = useEmpresa(api);
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
   const [resumen, setResumen] = useState<ResumenMuestra | null>(null); // conteos de TODA la muestra, vengan o no cargados todos los casos
   const ultimaGuardada = useRef<any[] | null>(null);
@@ -131,6 +133,7 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
         <View style={{ flex: 1 }}>
           <Text style={s.date}>{fecha}</Text>
           <Text style={s.greet}>Hola, <Text style={s.greetName}>{nombre}</Text></Text>
+          {nombreDeEmpresa(empresa) ? <Text style={s.empresa}>{nombreDeEmpresa(empresa)} · Auditoría de Visitas</Text> : null}
         </View>
         <View style={s.syncPill}>
           <View style={[s.dot, (refreshing || pendientesSync > 0) && s.dotBusy]} />
@@ -258,6 +261,7 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
 const s = StyleSheet.create({
   greetRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   date: { fontSize: 12.5, fontWeight: "500", color: C.muted },
+  empresa: { fontSize: 12, fontWeight: "700", color: C.muted, marginTop: 2, letterSpacing: 0.2 },
   greet: { fontFamily: F.display, fontSize: 38, lineHeight: 42, fontWeight: "normal", color: C.ink, letterSpacing: -0.9 },
   greetName: { fontFamily: F.italic, color: C.primary },
   syncPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, marginTop: 4, ...shadow.sm },

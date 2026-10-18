@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "../AuthContext";
+import { nombreDeEmpresa, useEmpresa } from "../empresa";
 import { Avatar, Button, Card, Header, Screen } from "../ui";
 import { C, shadow } from "../theme";
 import { discardRejectedVisit, lastSyncError, pendingVisitCount, rejectedVisits, syncPendingVisits, type RejectedVisit } from "../offlineSync";
@@ -18,6 +19,7 @@ const advisorDisplayName = (user: {
 
 export default function MoreScreen() {
   const { user, token, logout, offlineSession } = useAuth();
+  const empresa = useEmpresa();
   const displayName = advisorDisplayName(user);
   const [pending, setPending] = useState(0);
   const [syncing, setSyncing] = useState(false);
@@ -117,7 +119,7 @@ export default function MoreScreen() {
       <Pressable onPress={showFieldHelp} style={({ pressed }) => [s.row, pressed && s.pressed]}><View style={[s.rowIcon, s.helpIcon]}><MaterialCommunityIcons name="book-open-variant" size={22} color={C.warning} /></View><View style={s.rowCopy}><Text style={s.rowTitle}>Guía de la visita de auditoría</Text><Text style={s.rowSub}>Recomendaciones para registrar una ficha completa.</Text></View><MaterialCommunityIcons name="chevron-right" size={22} color={C.placeholder} /></Pressable>
     </Card>
     <Button title="Cerrar sesión" kind="danger" icon="logout" onPress={logout} />
-    <Text style={s.version}>Auditoría de Visitas · Caja Huancayo · Versión 0.1.0</Text>
+    <Text style={s.version}>Auditoría de Visitas · {nombreDeEmpresa(empresa) || "Sulotec"} · Versión 0.1.0</Text>
   </Screen>;
 }
 

@@ -57,7 +57,7 @@ export default function LoginScreen() {
         </LinearGradient>
         <View>
           <Text style={s.brandName}>Auditoría de Visitas</Text>
-          <Text style={s.brandCompany}>Caja Huancayo</Text>
+          <Text style={s.brandCompany}>Sulotec · Authentication Work</Text>
         </View>
       </View>
       <View style={s.copy}>
