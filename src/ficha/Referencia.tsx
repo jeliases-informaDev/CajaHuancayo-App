@@ -32,8 +32,24 @@ function Cliente({ e }: { e: any }) {
       <ReadRow label="Tipo de vivienda" value={c.tipo_vivienda} />
       <ReadRow label="N.º de suministro" value={c.numero_suministro} />
       <ReadRow label="Tipo de cliente" value={c.tipo_cliente} />
+      <ReadRow label="Sexo" value={c.sexo} />
+      <ReadRow label="Zona" value={c.zona} />
+      <ReadRow label="Oficina / agencia" value={e.oficina} />
+      <ReadRow label="Fuente" value={c.fuente} />
+      <ReadRow label="Código de cliente" value={c.codigo_cliente} />
+      <ReadRow label="Expediente (core)" value={c.codigo_expediente_core} />
     </BaseCard>
   );
+}
+
+// Códigos internos del core (moneda, tipo, producto, pagaré, oficina…): la base los trae y aquí se ven todos, compactos.
+const CODIGOS: [string, string][] = [["moneda", "Mon."], ["tipo_credito", "Tipo"], ["producto", "Prod."], ["subproducto", "Subprod."], ["pagare", "Pagaré"], ["normal_refinanciado", "N/R"], ["estado_contable", "Est. cont."], ["modalidad", "Modal."], ["plazo", "Plazo"], ["oficina", "Ofic."]];
+function codigosCore(cr: any, cliente: any) {
+  const c = cr.codigos || {}; const cc = cliente.codigos || {};
+  const items = CODIGOS.filter(([k]) => c[k]).map(([k, etiqueta]) => `${etiqueta} ${c[k]}`);
+  if (cc.sexo) items.push(`Sexo ${cc.sexo}`);
+  if (cc.estado_civil) items.push(`Est. civil ${cc.estado_civil}`);
+  return items.length ? items.join(" · ") : undefined;
 }
 
 function Credito({ e }: { e: any }) {
@@ -44,26 +60,34 @@ function Credito({ e }: { e: any }) {
     <>
       <BaseCard title="Crédito y participantes">
         <ReadRow label="N.º de crédito" value={cr.numero_credito || e.codigo_expediente} />
-        <ReadRow label="Producto" value={cr.producto} />
+        <ReadRow label="Producto / subproducto" value={[cr.producto, cr.subproducto].filter(Boolean).join(" / ")} />
+        <ReadRow label="Tipo / modalidad" value={[cr.tipo_credito_desc, cr.modalidad].filter(Boolean).join(" · ")} />
+        <ReadRow label="Línea / solicitud" value={[cr.linea_credito, cr.solicitud].filter(Boolean).join(" / ")} />
         <ReadRow label="Desembolso" value={`${e.moneda === "USD" ? "US$" : "S/"} ${num(e.monto_desembolso)} · ${fecha(cr.fecha_desembolso)}`} />
-        <ReadRow label="Saldo de capital" value={num(cr.saldo_capital)} />
+        {e.moneda === "USD" ? <ReadRow label="Desembolso en soles / T.C." value={`S/ ${num(cr.monto_desembolsado_soles)} · ${num(cr.tipo_cambio)}`} /> : null}
+        <ReadRow label="Saldo de capital" value={num(cr.saldo_capital) + (e.moneda === "USD" && cr.saldo_capital_soles != null ? ` (S/ ${num(cr.saldo_capital_soles)})` : "")} />
+        <ReadRow label="Días de gracia" value={cr.dias_gracia} />
         <ReadRow label="Cuota" value={`${num(cr.monto_cuota)} · ${cr.plazo_cuotas ?? "-"} cuotas`} />
         <ReadRow label="Destino" value={cr.destino} />
         <ReadRow label="Estado / condición" value={`${cr.estado || "-"} / ${cr.condicion_contable || "-"}`} />
         <ReadRow label="Vencimiento" value={fecha(cr.fecha_vencimiento)} />
         <ReadRow label="Último pago" value={fecha(cr.fecha_ultimo_pago)} />
         <ReadRow label="Días de atraso" value={cr.dias_atraso} />
-        <ReadRow label="Calificación SBS" value={cr.calificacion_sbs} />
-        <ReadRow label="Asesor responsable" value={e.asesor_responsable} />
-        <ReadRow label="Asesor de la solicitud" value={cr.asesor_solicitud} />
-        <ReadRow label="Nivel aprobador" value={[apr.nombre, apr.cargo].filter(Boolean).join(" - ")} />
-        <ReadRow label="Cónyuge / aval" value={`${cr.conyuge || "-"} / ${cr.aval || "-"}`} />
+        <ReadRow label="Calificación SBS / entidades" value={`${cr.calificacion_sbs || "-"} · ${cr.numero_entidades ?? "-"}`} />
+        <ReadRow label="Asesor responsable" value={[cr.asesor_actual || e.asesor_responsable, cr.usuario_asesor_actual].filter(Boolean).join(" · ")} />
+        <ReadRow label="Asesor de la solicitud" value={[cr.asesor_solicitud, cr.usuario_asesor_solicitud].filter(Boolean).join(" · ")} />
+        <ReadRow label="Nivel aprobador" value={[apr.nombre, apr.cargo, apr.usuario].filter(Boolean).join(" - ")} />
+        <ReadRow label="Cónyuge" value={cr.conyuge && cr.marca_conyuge && cr.marca_conyuge !== "NOCONYU" ? `${cr.conyuge} (${cr.marca_conyuge})` : cr.conyuge} />
+        <ReadRow label="Aval / rep. legal" value={`${cr.aval || "-"} / ${cr.rep_legal || "-"}`} />
+        <ReadRow label="Códigos del core" value={codigosCore(cr, e.datos_cliente || {})} />
       </BaseCard>
       <BaseCard title="Historial crediticio">
         {h.length ? h.map((x, i) => (
           <View key={i} style={s.itemBox}>
             <ReadRow label="Línea / tipo" value={`${x.linea || "-"} · ${x.tipo || "-"}`} />
-            <ReadRow label="Desembolso" value={`${fecha(x.fecha_desembolso)} · ${num(x.monto)}`} />
+            <ReadRow label="Desembolso" value={`${fecha(x.fecha_desembolso)} · ${x.moneda === "USD" ? "US$" : "S/"} ${num(x.monto)}`} />
+            <ReadRow label="Solicitud / N.º de crédito" value={`${x.solicitud || "-"} / ${x.numero_credito || "-"}`} />
+            <ReadRow label="Plazo / cuota" value={`${x.plazo_cuotas ?? "-"} cuotas · ${num(x.cuota)}`} />
             <ReadRow label="Condición" value={x.condicion} />
             <ReadRow label="Saldo" value={num(x.saldo)} />
             <ReadRow label="Cuota más atrasada" value={x.cuota_mas_atrasada} />
@@ -87,14 +111,18 @@ function Negocio({ e }: { e: any }) {
       {locales.map((x, i) => (
         <BaseCard key={i} title={`Local ${locales.length > 1 ? i + 1 : ""}`.trim()}>
           <ReadRow label="Dirección" value={x.direccion} />
-          <ReadRow label="Distrito" value={x.distrito} />
+          <ReadRow label="Distrito / dpto." value={[x.distrito, x.departamento].filter(Boolean).join(" / ")} />
           <ReadRow label="Referencia" value={x.referencia} />
           <ReadRow label="Teléfono" value={x.telefono} />
+          <ReadRow label="Contacto" value={x.contacto} />
         </BaseCard>
       ))}
     </>
   );
 }
+
+// Encabezado de los comparativos: número y fecha de cada evaluación (reevaluación = la más reciente).
+const periodos = (re: any, an: any) => `Reeval. ${re ? [re.numero_evaluacion, fecha(re.fecha)].filter(Boolean).join(" · ") : "—"}   |   Anterior ${an ? [an.numero_evaluacion, fecha(an.fecha)].filter(Boolean).join(" · ") : "—"}`;
 
 function Evaluacion({ e, mype }: { e: any; mype: boolean }) {
   const ev = e.evaluacion_financiera || {};
@@ -117,9 +145,14 @@ function Evaluacion({ e, mype }: { e: any; mype: boolean }) {
             {mype ? (
               <>
                 <ReadRow label="Veces al mes" value={num(l.frecuencia)} />
+                <ReadRow label="Días buenos (cant. · días)" value={`${num(l.dias_buenos?.cantidad)} · ${l.dias_buenos?.dias ?? "-"}`} />
+                <ReadRow label="Días malos (cant. · días)" value={`${num(l.dias_malos?.cantidad)} · ${l.dias_malos?.dias ?? "-"}`} />
+                <ReadRow label="Días estándar (cant. · días)" value={`${num(l.dias_estandar?.cantidad)} · ${l.dias_estandar?.dias ?? "-"}`} />
                 <ReadRow label="Precio compra / venta" value={`${num(l.precio_compra)} / ${num(l.precio_venta)}`} />
-                <ReadRow label="Total ventas" value={num(l.total_ventas)} />
+                <ReadRow label="Total mercaderías" value={num(l.total_mercaderias)} />
                 <ReadRow label="Total compras" value={num(l.total_compras)} />
+                <ReadRow label="Total ventas" value={num(l.total_ventas)} />
+                <ReadRow label="Cant. estándar al cierre" value={num(l.cantidad_estandar_fin)} />
               </>
             ) : (
               <>
@@ -133,16 +166,26 @@ function Evaluacion({ e, mype }: { e: any; mype: boolean }) {
       </BaseCard>
       {mype && (re || an) ? (
         <>
-          <BaseCard title="Balance general" hint={`Reevaluación ${re ? fecha(re.fecha) : "—"}  ·  Anterior ${an ? fecha(an.fecha) : "—"}`}>
+          <BaseCard title="Balance general" hint={periodos(re, an)}>
             <Fila etiqueta="Activo corriente" bloque="balance" clave="activo_corriente" />
+            <Fila etiqueta="  Disponibles" bloque="balance" clave="disponibles" />
+            <Fila etiqueta="  Cuentas por cobrar" bloque="balance" clave="cuentas_por_cobrar" />
+            <Fila etiqueta="  Otras ctas. por cobrar" bloque="balance" clave="otras_cuentas_por_cobrar" />
+            <Fila etiqueta="  Adelanto a proveedores" bloque="balance" clave="adelanto_proveedores" />
+            <Fila etiqueta="  Existencias" bloque="balance" clave="existencias" />
             <Fila etiqueta="Activo no corriente" bloque="balance" clave="activo_no_corriente" />
             <Fila etiqueta="Total activo" bloque="balance" clave="total_activo" />
             <Fila etiqueta="Pasivo corriente" bloque="balance" clave="pasivo_corriente" />
+            <Fila etiqueta="  Proveedores" bloque="balance" clave="proveedores" />
+            <Fila etiqueta="  Otras ctas. por pagar" bloque="balance" clave="otras_cuentas_por_pagar" />
+            <Fila etiqueta="  Préstamos corto plazo" bloque="balance" clave="prestamos_corto_plazo" />
             <Fila etiqueta="Pasivo no corriente" bloque="balance" clave="pasivo_no_corriente" />
+            <Fila etiqueta="  Préstamos largo plazo" bloque="balance" clave="prestamos_largo_plazo" />
             <Fila etiqueta="Total pasivo" bloque="balance" clave="total_pasivo" />
             <Fila etiqueta="Patrimonio" bloque="balance" clave="patrimonio" />
+            <Fila etiqueta="Total pasivo + patrimonio" bloque="balance" clave="total_pasivo_patrimonio" />
           </BaseCard>
-          <BaseCard title="Estado de resultados" hint={`Reevaluación ${re ? fecha(re.fecha) : "—"}  ·  Anterior ${an ? fecha(an.fecha) : "—"}`}>
+          <BaseCard title="Estado de resultados" hint={periodos(re, an)}>
             <Fila etiqueta="Ventas netas" bloque="resultados" clave="ventas_netas" />
             <Fila etiqueta="Costo de ventas" bloque="resultados" clave="costo_ventas" />
             <Fila etiqueta="Utilidad bruta" bloque="resultados" clave="utilidad_bruta" />
@@ -150,9 +193,12 @@ function Evaluacion({ e, mype }: { e: any; mype: boolean }) {
             <Fila etiqueta="Utilidad operativa" bloque="resultados" clave="utilidad_operativa" />
             <Fila etiqueta="Obligaciones del negocio" bloque="resultados" clave="obligaciones_negocio" />
             <Fila etiqueta="Utilidad neta" bloque="resultados" clave="utilidad_neta" />
+            <Fila etiqueta="Otros ingresos U.E.F." bloque="resultados" clave="otros_ingresos_uef" />
+            <Fila etiqueta="Obligaciones U.E.F." bloque="resultados" clave="obligaciones_uef" />
             <Fila etiqueta="Gastos familiares" bloque="resultados" clave="gastos_familiares" />
             <Fila etiqueta="Resultado U.E.F." bloque="resultados" clave="resultado_uef" />
             <Fila etiqueta="Capacidad de pago" bloque="resultados" clave="capacidad_pago" />
+            <Fila etiqueta="% del resultado U.E.F." bloque="resultados" clave="porcentaje_capacidad" />
           </BaseCard>
         </>
       ) : null}
@@ -163,7 +209,7 @@ function Evaluacion({ e, mype }: { e: any; mype: boolean }) {
 function Deuda({ e }: { e: any }) {
   const d = e.endeudamiento || {};
   const bloque = (titulo: string, lista: any[]) => (
-    <BaseCard title={titulo} hint={d.fecha_corte ? `Situación al ${fecha(d.fecha_corte)}` : undefined}>
+    <BaseCard title={titulo} hint={[d.fecha_corte ? `Situación al ${fecha(d.fecha_corte)}` : "", d.numero_entidades != null ? `${d.numero_entidades} entidad(es) reportada(s)` : ""].filter(Boolean).join(" · ") || undefined}>
       {lista.length ? lista.map((x, i) => (
         <View key={i} style={s.itemBox}>
           <ReadRow label="Entidad" value={x.entidad} />
