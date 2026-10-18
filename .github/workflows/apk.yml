@@ -10,6 +10,11 @@ name: Compilar APK (Android)
 
 on:
   workflow_dispatch:
+    inputs:
+      api_url:
+        description: Dirección del servidor (API) que llevará incorporado el APK
+        required: false
+        default: https://api-auditoria.sulotec.com
 
 jobs:
   apk:
@@ -17,7 +22,8 @@ jobs:
     timeout-minutes: 60
     env:
       # La misma dirección del servidor que usa el perfil «preview» de EAS (eas.json): el APK la lleva incorporada.
-      EXPO_PUBLIC_API_URL: https://caja-huancayo-backend-dba8.onrender.com
+      # Por defecto, la API en Sulotec (Oracle); se puede pasar otra al lanzar el workflow (p. ej. la vieja de Render).
+      EXPO_PUBLIC_API_URL: ${{ inputs.api_url || 'https://api-auditoria.sulotec.com' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
