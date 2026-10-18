@@ -73,8 +73,10 @@ export async function iniciarJornada(avisarServidor: () => Promise<unknown>): Pr
   await avisarServidor();
   await Location.startLocationUpdatesAsync(JORNADA_TASK, {
     accuracy: Location.Accuracy.High,
+    // Una posición cada 15 s aunque el auditor esté quieto (en una visita, por ejemplo): con una distancia mínima no llegaría ninguna y el
+    // supervisor lo vería como «sin señal». Así también se puede saber desde cuándo está detenido.
     timeInterval: 15_000,
-    distanceInterval: 15,
+    distanceInterval: 0,
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,
     foregroundService: {

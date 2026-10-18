@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { useAuth } from "../AuthContext";
 import { C } from "../theme";
 import GeoFilterBar, { GEO_FILTRO_TODOS, GeoFiltro, matchesGeoFiltro } from "../components/GeoFilterBar";
+import { cargarMuestra } from "../muestra";
 
 // Mapa real para el navegador (expo-web no soporta react-native-webview, que es lo
 // que usa el mapa nativo de Android). Mismo Leaflet + OpenStreetMap que ya usa el
@@ -229,6 +230,8 @@ function CamaraMapa({ camara }: { camara: Camara | null }) {
 export default function MapScreenWeb({ currentLocation }: { refreshRevision?: number; currentLocation?: { latitude: number; longitude: number } | null }) {
   const { api } = useAuth();
   const [all, setAll] = useState<any[]>([]);
+  const ultimaCarga = useRef<any[] | null>(null);
+  const [incompleto, setIncompleto] = useState<{ cargados: number; total: number } | null>(null);
   const [filter, setFilter] = useState<string>("TODOS");
   const [geoFiltro, setGeoFiltro] = useState<GeoFiltro>(GEO_FILTRO_TODOS);
   const [loading, setLoading] = useState(false);
@@ -241,11 +244,15 @@ export default function MapScreenWeb({ currentLocation }: { refreshRevision?: nu
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response: any = await api("/api/asignaciones/mias");
-      const next = (response.data || []).map(normalizePoint).filter((p: any) => Number.isFinite(p.latitud) && Number.isFinite(p.longitud));
-      setAll(next);
+      // Por páginas y en versión ligera; si la muestra no cambió se devuelve la misma lista y no se rehace nada.
+      const m = await cargarMuestra(api, { ligero: true });
+      setIncompleto(m.completa ? null : { cargados: m.data.length, total: m.total });
+      if (ultimaCarga.current !== m.data) {
+        ultimaCarga.current = m.data;
+        setAll(m.data.map(normalizePoint).filter((p: any) => Number.isFinite(p.latitud) && Number.isFinite(p.longitud)));
+      }
     } catch {
-      setAll([]);
+      // sin señal o error: se conservan los puntos que ya estaban
     } finally {
       setLoading(false);
     }
@@ -339,6 +346,7 @@ export default function MapScreenWeb({ currentLocation }: { refreshRevision?: nu
                 <Text style={s.resumenTexto}>Siguiente: <Text style={s.negrita}>{siguiente.nombres}</Text> · {fmtDistancia(siguiente.distanciaDesdeMi)}{rutaKm > 0 ? ` · ruta de ${fmtDistancia(rutaKm)}` : ""}</Text>
               ) : null}
               {lejanos > 0 ? <Text style={s.resumenApagado}>{lejanos} {lejanos === 1 ? "caso está" : "casos están"} a más de 60 km de ti</Text> : null}
+              {incompleto ? <Text style={s.resumenApagado}>Mostrando {incompleto.cargados} de {incompleto.total} casos: acércate a una zona para verlos todos</Text> : null}
             </View>
             <View style={s.acciones}>
               {origen ? <Pressable onPress={centrarme} style={s.btn}><Text style={s.btnTxt}>Centrarme</Text></Pressable> : null}

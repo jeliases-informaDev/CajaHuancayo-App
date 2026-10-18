@@ -7,6 +7,7 @@ import { C, shadow } from "../theme";
 import FichaWizard from "../ficha/FichaWizard";
 import { comoLlegarA } from "../ficha/destino";
 import { cacheGet, cacheSet } from "../offlineSync";
+import { cargarMuestra } from "../muestra";
 
 function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371000;
@@ -33,6 +34,11 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   // el auditor se los puede auto-asignar en vez de esperar a que el supervisor lo haga.
   const [vista, setVista] = useState<"mia" | "disponibles">("mia");
   const [disponibles, setDisponibles] = useState<any[]>([]);
+  // «Disponibles» se pide por páginas y con la búsqueda y el filtro en el servidor: puede haber miles y no caben en una respuesta.
+  const [dispInfo, setDispInfo] = useState<{ page: number; pages: number; total: number } | null>(null);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  // Progreso de la descarga de la muestra (por páginas): «100 de 230 cargados».
+  const [progreso, setProgreso] = useState<{ cargados: number; total: number; completa: boolean } | null>(null);
   const [loadingDisponibles, setLoadingDisponibles] = useState(false);
   const [errorDisponibles, setErrorDisponibles] = useState("");
   const [claimingId, setClaimingId] = useState<number | null>(null);
@@ -45,14 +51,19 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
 
   const mounted = useRef(true);
 
-  const load = useCallback(async (background = false) => {
+  const load = useCallback(async (background = false, forzar = false) => {
     if (background) setRefreshing(true);
     try {
-      const r: any = await api("/api/asignaciones/mias");
+      const m = await cargarMuestra(api, {
+        forzar,
+        // la primera página se pinta enseguida; el resto llega mientras el auditor ya puede trabajar
+        onPagina: (parcial) => { if (mounted.current) { setAsignaciones(parcial.data); setProgreso({ cargados: parcial.data.length, total: parcial.total, completa: parcial.completa }); setLoading(false); } },
+      });
       if (!mounted.current) return;
-      setAsignaciones(r.data || []);
+      setAsignaciones(m.data);
+      setProgreso({ cargados: m.data.length, total: m.total, completa: m.completa });
       setError("");
-      cacheSet(CACHE_KEY_MUESTRA, r.data || []);
+      cacheSet(CACHE_KEY_MUESTRA, m.data);
     } catch (e: any) {
       if (mounted.current) setError(e.message);
     } finally {
@@ -69,24 +80,34 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     load();
     return () => { mounted.current = false; };
   }, [load]);
-  useEffect(() => { if (refreshRevision > 0) load(true); }, [refreshRevision, load]);
+  useEffect(() => { if (refreshRevision > 0) load(true, true); }, [refreshRevision, load]);
   useEffect(() => { onDetailVisibilityChange?.(Boolean(selected)); }, [selected, onDetailVisibilityChange]);
 
-  const loadDisponibles = useCallback(async () => {
-    setLoadingDisponibles(true);
+  const loadDisponibles = useCallback(async (pagina = 1) => {
+    if (pagina === 1) setLoadingDisponibles(true); else setCargandoMas(true);
     try {
-      const r: any = await api("/api/asignaciones/disponibles");
+      const params = new URLSearchParams({ page: String(pagina), limit: "50" });
+      if (query.trim().length >= 2) params.set("q", query.trim());
+      if (filtro === "MYPE") params.set("tipo", "OTROS");
+      if (filtro === "CONSUMO") params.set("tipo", "CONSUMO");
+      const r: any = await api("/api/asignaciones/disponibles?" + params.toString());
       if (!mounted.current) return;
-      setDisponibles(r.data || []);
+      setDisponibles((previos) => (pagina === 1 ? r.data || [] : [...previos, ...(r.data || [])]));
+      setDispInfo(r.pagination ? { page: r.pagination.page, pages: r.pagination.pages, total: r.pagination.total } : null);
       setErrorDisponibles("");
     } catch (e: any) {
       if (mounted.current) setErrorDisponibles(e.message || "No pudimos cargar los expedientes disponibles.");
     } finally {
-      if (mounted.current) setLoadingDisponibles(false);
+      if (mounted.current) { setLoadingDisponibles(false); setCargandoMas(false); }
     }
-  }, [api]);
+  }, [api, query, filtro]);
 
-  useEffect(() => { if (vista === "disponibles") loadDisponibles(); }, [vista, loadDisponibles]);
+  // Al escribir o cambiar el filtro se vuelve a pedir la primera página (con una pequeña espera para no pedir en cada letra).
+  useEffect(() => {
+    if (vista !== "disponibles") return;
+    const t = setTimeout(() => loadDisponibles(1), 350);
+    return () => clearTimeout(t);
+  }, [vista, loadDisponibles]);
 
   useEffect(() => {
     cacheGet<typeof GEO_DEFAULT>(CACHE_KEY_GEO).then((cached) => { if (cached && mounted.current) setGeoConfig(cached.value); });
@@ -109,14 +130,14 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     setClaimingId(idExpediente);
     try {
       await api(`/api/asignaciones/auto/${idExpediente}`, { method: "POST" });
-      await Promise.all([load(true), loadDisponibles()]);
+      await Promise.all([load(true, true), loadDisponibles(1)]);
       setVista("mia");
       Alert.alert("Caso tomado", "Este expediente ya está en tu muestra.");
     } catch (e: any) {
       // ALREADY_CLAIMED: otro auditor lo tomó primero entre que se cargó la lista y
       // que este presionó "Tomar" — se refresca la lista para que deje de verlo.
       Alert.alert("No se pudo tomar", e.message || "Intenta de nuevo.");
-      loadDisponibles();
+      loadDisponibles(1);
     } finally {
       setClaimingId(null);
     }
@@ -131,7 +152,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
         geo={geoConfig}
         currentLocation={currentLocation}
         onClose={() => setSelected(null)}
-        onSent={() => load(true)}
+        onSent={() => load(true, true)}
       />
     );
   }
@@ -171,8 +192,8 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   ];
 
   return (
-    <Screen refreshControl={<RefreshControl refreshing={vista === "mia" ? refreshing : loadingDisponibles} onRefresh={() => (vista === "mia" ? load(true) : loadDisponibles())} colors={[C.primary]} />}>
-      <Header title="Mi muestra" subtitle={vista === "mia" ? `${visiblesMias.length} de ${asignaciones.length} caso(s)` : `${visiblesDisp.length} disponible(s) en tu zona`} />
+    <Screen refreshControl={<RefreshControl refreshing={vista === "mia" ? refreshing : loadingDisponibles} onRefresh={() => (vista === "mia" ? load(true, true) : loadDisponibles(1))} colors={[C.primary]} />}>
+      <Header title="Mi muestra" subtitle={vista === "mia" ? `${visiblesMias.length} de ${progreso && progreso.total > asignaciones.length ? progreso.total : asignaciones.length} caso(s)${progreso && !progreso.completa ? ` · descargando ${progreso.cargados} de ${progreso.total}…` : ""}` : `${dispInfo ? dispInfo.total : visiblesDisp.length} disponible(s) en tu zona`} />
 
       {autoasignacion ? <Seg options={[{ id: "mia", label: "Asignados" }, { id: "disponibles", label: "Disponibles en tu zona" }]} value={vista} onChange={setVista} /> : null}
 
@@ -211,6 +232,11 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
               </View>
             );
           })}
+          {dispInfo && dispInfo.page < dispInfo.pages ? (
+            <Pressable onPress={() => loadDisponibles(dispInfo.page + 1)} disabled={cargandoMas} style={[s.verMas, cargandoMas && { opacity: 0.6 }]}>
+              <Text style={s.verMasTxt}>{cargandoMas ? "Cargando…" : `Ver más (quedan ${dispInfo.total - disponibles.length})`}</Text>
+            </Pressable>
+          ) : null}
         </>
       ) : (
         <>
@@ -248,6 +274,8 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
 }
 
 const s = StyleSheet.create({
+  verMas: { alignSelf: "center", marginTop: 6, marginBottom: 14, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 12, backgroundColor: "#E6ECFF" },
+  verMasTxt: { fontSize: 12, fontWeight: "800", color: "#1236C7" },
   search: { flexDirection: "row", alignItems: "center", gap: 9, minHeight: 50, borderWidth: 1, borderColor: C.borderStrong, borderRadius: 14, paddingHorizontal: 14, backgroundColor: "#fff" },
   searchInput: { flex: 1, fontSize: 14, color: C.ink, paddingVertical: 10 },
   filters: { gap: 8, paddingRight: 8 },
