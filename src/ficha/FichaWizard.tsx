@@ -208,7 +208,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
       poner("conyuge_conoce_prestamo", s.conyugeConoce);
       poner("creditos_paralelos", s.creditosParalelos);
       poner("comparte_dinero_credito", s.comparteDinero);
-      if (plantilla === "MYPE_V1") poner("titular_administra_negocio", s.titularAdministra);
+      poner("titular_administra_negocio", s.titularAdministra);
       poner("tiene_microseguro", s.tieneMicroseguro);
       poner("recibio_info_microseguro", s.infoMicroseguro);
       poner("conforme_microseguro", s.conformeMicroseguro);
@@ -228,7 +228,8 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
         respuestasCuestionario: respuestas,
         comentarioNegocio: s.comentarioNegocio.trim(),
         comentarioAuditor: s.comentarioAuditor.trim(),
-        estadoNegocio: plantilla === "MYPE_V1" ? s.estadoNegocio : "",
+        // En Consumo es opcional (cómo se encontró el negocio o centro de trabajo); en MYPE lo exige el servidor.
+        estadoNegocio: s.estadoNegocio,
         propiedadLocal: plantilla === "MYPE_V1" ? s.propiedadLocal : "",
         conformidadFinanciera: plantilla === "MYPE_V1" && llegoAlCliente
           ? Object.fromEntries((["ingresos", "balance", "resultados"] as const).map((k) => [k, { conforme: s.conf[k].conforme === true, ...(s.conf[k].comentario.trim() ? { comentario: s.conf[k].comentario.trim() } : {}) }]))
@@ -331,7 +332,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
           {restaurado ? <Callout tipo="info">Recuperamos el avance que dejaste en esta ficha.</Callout> : null}
 
           {actual.id === "verificacion" ? (
-            <PasoVerificacion expediente={expediente} plantilla={plantilla} punto={punto} puntos={puntos} onElegir={(p) => set({ destino: p.tipo, indiceNegocio: p.indice })} distanciaM={distanciaM} geo={geo} onVerBase={() => setVerBase("cliente")} onNoUbicado={() => { set({ resultado: "NO_UBICADO" }); irAPaso("cierre"); }} />
+            <PasoVerificacion expediente={expediente} plantilla={plantilla} punto={punto} puntos={puntos} onElegir={(p) => set({ destino: p.tipo, indiceNegocio: p.indice })} distanciaM={distanciaM} geo={geo} onVerBase={() => setVerBase("cliente")} onNoUbicado={() => { set({ resultado: "NO_UBICADO" }); irAPaso("cierre"); }} ficha={s} set={set} />
           ) : null}
           {actual.id === "negocio" ? <PasoNegocio s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("negocio")} /> : null}
           {actual.id === "evaluacion" ? <PasoEvaluacion s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("evaluacion")} /> : null}
