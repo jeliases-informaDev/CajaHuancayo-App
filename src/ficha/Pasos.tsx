@@ -21,8 +21,10 @@ const ORIGEN_UBICACION: Record<string, string> = {
 const num = (v: any) => (v === null || v === undefined || v === "" || Number.isNaN(Number(v)) ? "-" : Number(v).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 
 // ---------------------------------------------------------------- 1. Verificación
-export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegir, distanciaM, geo, onVerBase, onNoUbicado }: {
+export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegir, distanciaM, geo, onVerBase, onNoUbicado, ficha, set }: {
   expediente: any; plantilla: Plantilla; punto: Punto; puntos: Punto[]; onElegir: (p: Punto) => void; distanciaM: number | null; geo: GeoConfig; onVerBase: () => void; onNoUbicado: () => void;
+  /** Estado de la ficha: en Consumo este paso registra cómo se encontró el negocio o centro de trabajo (la ficha del banco lo pide). */
+  ficha?: FichaState; set?: Set;
 }) {
   const e = expediente;
   const c = e.datos_cliente || {};
@@ -86,6 +88,13 @@ export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegi
           <Callout tipo="info">La base no trae coordenadas de este {lugar}. Si la visita sale limpia, tu ubicación quedará como referencia (se registra en el historial del expediente).</Callout>
         )}
       </BaseCard>
+
+      {plantilla === "CONSUMO_V1" && ficha && set ? (
+        <CampoCard title="Negocio o centro de trabajo" color={TEMA.CONSUMO_V1.color} hint="La ficha del banco lo pide también en Consumo. Si no aplica, déjalo sin marcar.">
+          <Text style={s.label}>¿Cómo encontraste el negocio o centro de trabajo del cliente?</Text>
+          <Chips options={ESTADOS_NEGOCIO} value={ficha.estadoNegocio} onChange={(v) => set({ estadoNegocio: ficha.estadoNegocio === v ? "" : v })} color={TEMA.CONSUMO_V1.color} />
+        </CampoCard>
+      ) : null}
 
       <BaseCard title="Resumen del crédito">
         <ReadRow label="Monto desembolsado" value={e.monto_desembolso ? money(e.monto_desembolso) : "-"} />
@@ -202,7 +211,7 @@ export function PasoCuestionario({ s: st, set, plantilla }: { s: FichaState; set
         <YesNoRow label="¿Cónyuge tiene conocimiento del préstamo?" value={st.conyugeConoce} onChange={(v) => set({ conyugeConoce: v })} />
         <YesNoRow label="¿Tiene créditos paralelos?" value={st.creditosParalelos} onChange={(v) => set({ creditosParalelos: v })} />
         <YesNoRow label="¿Comparte el dinero del crédito con otra persona?" value={st.comparteDinero} onChange={(v) => set({ comparteDinero: v })} />
-        {plantilla === "MYPE_V1" ? <YesNoRow label="¿El titular administra el negocio?" value={st.titularAdministra} onChange={(v) => set({ titularAdministra: v })} /> : null}
+        <YesNoRow label="¿El titular administra el negocio?" value={st.titularAdministra} onChange={(v) => set({ titularAdministra: v })} />
         <TextField label="¿Dónde realiza sus pagos?" value={st.dondePaga} onChangeText={(v) => set({ dondePaga: v })} placeholder="Agencia, agente, app, etc." />
       </CampoCard>
 
