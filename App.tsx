@@ -19,6 +19,7 @@ import { useFonts, InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic
 import { LinearGradient } from "expo-linear-gradient";
 import { C, G } from "./src/theme";
 import LoginScreen from "./src/screens/LoginScreen";
+import TerminosScreen from "./src/screens/TerminosScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
 import MapScreen from "./src/screens/MapScreen";
 import MiMuestraScreen from "./src/screens/MiMuestraScreen";
@@ -26,9 +27,13 @@ import MoreScreen from "./src/screens/MoreScreen";
 import { useFieldRealtime } from "./src/useFieldRealtime";
 import { useAuditorLocation } from "./src/useAuditorLocation";
 import {
+  cacheGet,
+  cacheSet,
   registerOfflineSyncTask,
   syncPendingVisits,
 } from "./src/offlineSync";
+// Versión de los términos aceptada en este celular por cada usuario (para no bloquear al abrir la app sin conexión).
+const claveTerminos = (userId: string) => "ch_terminos_" + userId;
 type Tab = "principal" | "muestra" | "mapa" | "mas";
 const tabs: any[] = [
   { key: "principal", label: "Hoy", icon: "home-outline", active: "home" },
@@ -47,7 +52,7 @@ const tabs: any[] = [
   },
 ];
 function Shell() {
-  const { token, loading, api, offlineSession } = useAuth();
+  const { token, user, loading, api, offlineSession } = useAuth();
   const [fontsLoaded, fontsError] = useFonts({ InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic });
   const [tab, setTab] = useState<Tab>("principal");
   const [online, setOnline] = useState(true);
@@ -56,6 +61,24 @@ function Shell() {
   const [detailOpen, setDetailOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
+  // Términos y condiciones: antes de usar la app se comprueba si el usuario aceptó la versión vigente; si no, se le muestran.
+  const [terminos, setTerminos] = useState<"cargando" | "pendiente" | "ok">("cargando");
+  useEffect(() => {
+    if (!token || !user) { setTerminos("cargando"); return; }
+    let vigente = true;
+    (async () => {
+      const previa = await cacheGet<string>(claveTerminos(user.id)).catch(() => null);
+      try {
+        const r: any = await api("/api/terminos");
+        if (!vigente) return;
+        if (r?.data?.aceptado) { await cacheSet(claveTerminos(user.id), r.data.version); setTerminos("ok"); } else setTerminos("pendiente");
+      } catch {
+        // Sin conexión: si en este celular ya se aceptó alguna versión, se deja pasar y se vuelve a comprobar con red.
+        if (vigente) setTerminos(previa?.value ? "ok" : "pendiente");
+      }
+    })();
+    return () => { vigente = false; };
+  }, [token, user?.id]);
   const { location, error: locationError } = useAuditorLocation(api, Boolean(token));
   useFieldRealtime(refresh);
   useEffect(() => {
@@ -84,6 +107,15 @@ function Shell() {
       </View>
     );
   if (!token) return <LoginScreen />;
+  if (terminos === "cargando")
+    return (
+      <View style={s.loading}>
+        <ActivityIndicator size="small" color={C.primary} />
+        <Text style={s.loadingText}>Comprobando tu acceso</Text>
+      </View>
+    );
+  if (terminos === "pendiente")
+    return <TerminosScreen onAceptado={async (version) => { if (user) await cacheSet(claveTerminos(user.id), version).catch(() => {}); setTerminos("ok"); }} />;
   const ScreenComponent: any = {
     principal: DashboardScreen,
     muestra: MiMuestraScreen,
