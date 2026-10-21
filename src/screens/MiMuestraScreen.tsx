@@ -200,7 +200,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
 
   return (
     <Screen refreshControl={<RefreshControl refreshing={vista === "mia" ? refreshing : loadingDisponibles} onRefresh={() => (vista === "mia" ? load(true, true) : loadDisponibles(1))} colors={[C.primary]} />}>
-      <Header title="Mi muestra" subtitle={vista === "mia" ? `${visiblesMias.length} de ${progreso && progreso.total > asignaciones.length ? progreso.total : asignaciones.length} caso(s)${progreso && !progreso.completa ? ` · descargando ${progreso.cargados} de ${progreso.total}…` : ""}` : `${dispInfo ? dispInfo.total : visiblesDisp.length} disponible(s) en tu zona`} />
+      <Header title="Mi muestra" subtitle={vista === "mia" ? `${visiblesMias.length} de ${progreso && progreso.total > asignaciones.length ? progreso.total : asignaciones.length} caso(s)${progreso && !progreso.completa ? ` · descargando ${progreso.cargados} de ${progreso.total}…` : ""}` : `${dispInfo ? dispInfo.total : visiblesDisp.length} disponible(s) para tomar`} />
 
       {autoasignacion ? <Seg options={[{ id: "mia", label: "Asignados" }, { id: "disponibles", label: "Disponibles cerca de ti" }]} value={vista} onChange={setVista} /> : null}
 
@@ -248,7 +248,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
       ) : (
         <>
           {error && !asignaciones.length ? <Empty title="No pudimos cargar tu muestra" text={error} /> : null}
-          {!error && !asignaciones.length ? <Empty title="Sin casos asignados" text={autoasignacion ? "Tu supervisor aún no te asignó una muestra. Revisa «Disponibles en tu zona» para tomar un caso." : "Tu supervisor aún no te asignó una muestra."} /> : null}
+          {!error && !asignaciones.length ? <Empty title="Sin casos asignados" text={autoasignacion ? "Tu supervisor aún no te asignó una muestra. Revisa «Disponibles cerca de ti» para tomar un caso." : "Tu supervisor aún no te asignó una muestra."} /> : null}
           {!!asignaciones.length && !visiblesMias.length ? <Empty title="Nada para mostrar" text="Ningún caso coincide con la búsqueda o el filtro." /> : null}
           {visiblesMias.map((item) => {
             const exp = item.expediente;
