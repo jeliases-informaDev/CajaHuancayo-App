@@ -95,8 +95,15 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
       if (query.trim().length >= 2) params.set("q", query.trim());
       if (filtro === "MYPE") params.set("tipo", "OTROS");
       if (filtro === "CONSUMO") params.set("tipo", "CONSUMO");
-      if (ubicacion.current) { params.set("lat", ubicacion.current.latitude.toFixed(6)); params.set("lon", ubicacion.current.longitude.toFixed(6)); }
-      const r: any = await api("/api/asignaciones/disponibles?" + params.toString());
+      const base = params.toString();
+      let r: any;
+      if (ubicacion.current) {
+        params.set("lat", ubicacion.current.latitude.toFixed(6)); params.set("lon", ubicacion.current.longitude.toFixed(6));
+        // Un servidor anterior (aún sin el orden por cercanía) rechaza lat y lon: se vuelve a pedir sin ubicación, por antigüedad.
+        try { r = await api("/api/asignaciones/disponibles?" + params.toString()); } catch { r = await api("/api/asignaciones/disponibles?" + base); }
+      } else {
+        r = await api("/api/asignaciones/disponibles?" + base);
+      }
       if (!mounted.current) return;
       setDisponibles((previos) => (pagina === 1 ? r.data || [] : [...previos, ...(r.data || [])]));
       setDispInfo(r.pagination ? { page: r.pagination.page, pages: r.pagination.pages, total: r.pagination.total } : null);
