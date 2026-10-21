@@ -31,7 +31,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<any>(null);
 
-  // "Disponibles": expedientes pendientes de tu misma zona que nadie tomó todavía —
+  // "Disponibles": expedientes pendientes de cualquier distrito que nadie tomó todavía, los más cercanos a ti primero —
   // el auditor se los puede auto-asignar en vez de esperar a que el supervisor lo haga.
   const [vista, setVista] = useState<"mia" | "disponibles">("mia");
   const [disponibles, setDisponibles] = useState<any[]>([]);
@@ -51,6 +51,10 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   const [filtro, setFiltro] = useState<"TODOS" | "MYPE" | "CONSUMO" | "ALTA">("TODOS");
 
   const mounted = useRef(true);
+  // Ubicación para ordenar «Disponibles» por cercanía. Se lee de una referencia: si cambiara con cada punto de GPS, la lista se pediría de nuevo todo el rato.
+  const ubicacion = useRef<{ latitude: number; longitude: number } | null>(null);
+  ubicacion.current = currentLocation ? { latitude: currentLocation.latitude, longitude: currentLocation.longitude } : null;
+  const tieneUbicacion = Boolean(currentLocation);
 
   const load = useCallback(async (background = false, forzar = false) => {
     if (background) setRefreshing(true);
@@ -91,6 +95,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
       if (query.trim().length >= 2) params.set("q", query.trim());
       if (filtro === "MYPE") params.set("tipo", "OTROS");
       if (filtro === "CONSUMO") params.set("tipo", "CONSUMO");
+      if (ubicacion.current) { params.set("lat", ubicacion.current.latitude.toFixed(6)); params.set("lon", ubicacion.current.longitude.toFixed(6)); }
       const r: any = await api("/api/asignaciones/disponibles?" + params.toString());
       if (!mounted.current) return;
       setDisponibles((previos) => (pagina === 1 ? r.data || [] : [...previos, ...(r.data || [])]));
@@ -101,7 +106,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     } finally {
       if (mounted.current) { setLoadingDisponibles(false); setCargandoMas(false); }
     }
-  }, [api, query, filtro]);
+  }, [api, query, filtro, tieneUbicacion]);
 
   // Al escribir o cambiar el filtro se vuelve a pedir la primera página (con una pequeña espera para no pedir en cada letra).
   useEffect(() => {
@@ -195,9 +200,9 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
 
   return (
     <Screen refreshControl={<RefreshControl refreshing={vista === "mia" ? refreshing : loadingDisponibles} onRefresh={() => (vista === "mia" ? load(true, true) : loadDisponibles(1))} colors={[C.primary]} />}>
-      <Header title="Mi muestra" subtitle={vista === "mia" ? `${visiblesMias.length} de ${progreso && progreso.total > asignaciones.length ? progreso.total : asignaciones.length} caso(s)${progreso && !progreso.completa ? ` · descargando ${progreso.cargados} de ${progreso.total}…` : ""}` : `${dispInfo ? dispInfo.total : visiblesDisp.length} disponible(s) en tu zona`} />
+      <Header title="Mi muestra" subtitle={vista === "mia" ? `${visiblesMias.length} de ${progreso && progreso.total > asignaciones.length ? progreso.total : asignaciones.length} caso(s)${progreso && !progreso.completa ? ` · descargando ${progreso.cargados} de ${progreso.total}…` : ""}` : `${dispInfo ? dispInfo.total : visiblesDisp.length} disponible(s) para tomar`} />
 
-      {autoasignacion ? <Seg options={[{ id: "mia", label: "Asignados" }, { id: "disponibles", label: "Disponibles en tu zona" }]} value={vista} onChange={setVista} /> : null}
+      {autoasignacion ? <Seg options={[{ id: "mia", label: "Asignados" }, { id: "disponibles", label: "Disponibles cerca de ti" }]} value={vista} onChange={setVista} /> : null}
 
       <View style={s.search}>
         <MaterialCommunityIcons name="magnify" size={19} color={C.muted} />
@@ -214,9 +219,9 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
 
       {vista === "disponibles" ? (
         <>
-          <Text style={s.hint}>Casos pendientes de tu departamento que ningún auditor ha tomado. Al tomar uno, pasa a tu muestra.</Text>
+          <Text style={s.hint}>Casos pendientes que ningún auditor ha tomado, de cualquier distrito. {tieneUbicacion ? "Salen primero los más cercanos a ti." : "Activa tu ubicación para verlos del más cercano al más lejano."} Al tomar uno, pasa a tu muestra.</Text>
           {errorDisponibles && !disponibles.length ? <Empty title="No pudimos cargar la lista" text={errorDisponibles} /> : null}
-          {!errorDisponibles && !loadingDisponibles && !visiblesDisp.length ? <Empty title="Nada para mostrar" text={disponibles.length ? "Ningún caso coincide con la búsqueda o el filtro." : "No hay casos pendientes sin tomar en tu zona."} /> : null}
+          {!errorDisponibles && !loadingDisponibles && !visiblesDisp.length ? <Empty title="Nada para mostrar" text={disponibles.length ? "Ningún caso coincide con la búsqueda o el filtro." : "No hay casos pendientes sin tomar."} /> : null}
           {visiblesDisp.map((exp) => {
             const claiming = claimingId === exp.id_expediente;
             return (
@@ -224,7 +229,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
                 <Avatar name={exp.nombres_cliente} size={44} />
                 <View style={s.rowBody}>
                   <View style={s.rowTop}><Text style={s.name} numberOfLines={1}>{exp.nombres_cliente}</Text><Etiqueta exp={exp} /></View>
-                  <Text style={s.meta} numberOfLines={1}>{exp.codigo_expediente} · {exp.distrito || "Sin distrito"}</Text>
+                  <Text style={s.meta} numberOfLines={1}>{exp.codigo_expediente} · {exp.distrito || "Sin distrito"}{distanciaA(exp) ? ` · a ${distanciaA(exp)}` : ""}</Text>
                   <Text style={s.addr} numberOfLines={1}>{exp.direccion_domicilio || "Sin dirección registrada"}</Text>
                   <Pressable onPress={() => tomarCaso(exp.id_expediente)} disabled={claiming} style={[s.takeBtn, claiming && { opacity: 0.6 }]}>
                     <MaterialCommunityIcons name={claiming ? "timer-sand" : "hand-extended-outline"} size={16} color="#fff" />
@@ -243,7 +248,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
       ) : (
         <>
           {error && !asignaciones.length ? <Empty title="No pudimos cargar tu muestra" text={error} /> : null}
-          {!error && !asignaciones.length ? <Empty title="Sin casos asignados" text={autoasignacion ? "Tu supervisor aún no te asignó una muestra. Revisa «Disponibles en tu zona» para tomar un caso." : "Tu supervisor aún no te asignó una muestra."} /> : null}
+          {!error && !asignaciones.length ? <Empty title="Sin casos asignados" text={autoasignacion ? "Tu supervisor aún no te asignó una muestra. Revisa «Disponibles cerca de ti» para tomar un caso." : "Tu supervisor aún no te asignó una muestra."} /> : null}
           {!!asignaciones.length && !visiblesMias.length ? <Empty title="Nada para mostrar" text="Ningún caso coincide con la búsqueda o el filtro." /> : null}
           {visiblesMias.map((item) => {
             const exp = item.expediente;
