@@ -9,7 +9,8 @@ import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlin
 import { cargarMuestra, type ResumenMuestra } from "../muestra";
 import { nombreDeEmpresa, useEmpresa } from "../empresa";
 import { comoLlegarA } from "../ficha/destino";
-import { inicioDeJornada, iniciarJornada, jornadaDisponible, jornadaEnCurso, reintentarFinPendiente, terminarJornada } from "../jornada";
+import { inicioDeJornada, iniciarJornada, jornadaDisponible, jornadaEnCurso, reintentarFinPendiente, terminarJornada, zonaDeLaJornada } from "../jornada";
+import type { ZonaJornada } from "../types/jornada";
 
 const CACHE_KEY_MUESTRA = "mias_v1";
 
@@ -37,13 +38,14 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
   const mounted = useRef(true);
   const requestId = useRef(0);
   // Jornada de campo: mientras está iniciada se comparte la ubicación en segundo plano (ver jornada.ts).
-  const [jornada, setJornada] = useState<{ activa: boolean; desde: string | null }>({ activa: false, desde: null });
+  const [jornada, setJornada] = useState<{ activa: boolean; desde: string | null; zona: string | null }>({ activa: false, desde: null, zona: null });
   const [jornadaOcupada, setJornadaOcupada] = useState(false);
   const [jornadaError, setJornadaError] = useState("");
   const leerJornada = useCallback(async () => {
-    try { const activa = await jornadaEnCurso(); setJornada({ activa, desde: activa ? await inicioDeJornada() : null }); } catch {}
+    try { const activa = await jornadaEnCurso(); setJornada({ activa, desde: activa ? await inicioDeJornada() : null, zona: activa ? await zonaDeLaJornada() : null }); } catch {}
   }, []);
-  const avisar = (accion: "INICIAR" | "TERMINAR") => () => api("/api/visitas/jornada", { method: "POST", body: JSON.stringify({ accion }) });
+  // Al iniciar se manda también la zona (posición del celular y nombre del lugar); al terminar, solo la acción.
+  const avisar = (accion: "INICIAR" | "TERMINAR") => (zona?: ZonaJornada) => api("/api/visitas/jornada", { method: "POST", body: JSON.stringify({ accion, ...(accion === "INICIAR" ? zona : {}) }) });
   // Si una jornada se terminó sin señal, al volver a abrir la app se le avisa al servidor.
   useEffect(() => { reintentarFinPendiente(avisar("TERMINAR")).finally(leerJornada); }, [leerJornada, refreshRevision]);
   const alternarJornada = async () => {
@@ -173,8 +175,8 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
             <View style={{ flex: 1 }}>
               <Text style={s.routeTitle}>{jornada.activa ? "Jornada en curso" : "Jornada de campo"}</Text>
               <Text style={s.routeSub}>{jornada.activa
-                ? `${jornada.desde ? `Desde las ${new Date(jornada.desde).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}. ` : ""}Tu supervisor ve tu ubicación en tiempo real, también con la pantalla apagada.`
-                : "Inicia la jornada al salir a campo: tu supervisor verá tu ubicación en tiempo real, también con la pantalla apagada o usando el mapa. Solo se comparte durante la jornada."}</Text>
+                ? `${jornada.desde ? `Desde las ${new Date(jornada.desde).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}. ` : ""}${jornada.zona ? `Tu zona de hoy: ${jornada.zona}. ` : ""}Tu supervisor ve tu ubicación en tiempo real, también con la pantalla apagada.`
+                : "Inicia la jornada al salir a campo: se guarda tu zona de trabajo y tu supervisor verá tu ubicación en tiempo real, también con la pantalla apagada o usando el mapa. Solo se comparte durante la jornada."}</Text>
             </View>
           </View>
           {jornadaError ? <Text style={s.jornadaError}>{jornadaError}</Text> : null}
