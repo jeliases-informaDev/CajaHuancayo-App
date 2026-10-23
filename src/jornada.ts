@@ -10,11 +10,13 @@ import { API_URL } from "./api";
 import { getDeviceId } from "./deviceIdentity";
 import { cacheGet, cacheSet } from "./offlineSync";
 import { estadoBateria } from "./bateria";
+import type { ZonaJornada } from "./types/jornada";
 
 export const JORNADA_TASK = "ch-jornada-ubicacion";
 const TOKEN_KEY = "ch_token";
 const CLAVE_INICIO = "jornada_inicio_local";
 const CLAVE_FIN_PENDIENTE = "jornada_fin_pendiente"; // se terminó en el celular pero el servidor aún no lo sabe (sin señal)
+const CLAVE_ZONA = "jornada_zona"; // la zona de trabajo con la que el servidor registró el inicio (para mostrarla mientras dure la jornada)
 export const jornadaDisponible = Platform.OS === "android" || Platform.OS === "ios";
 
 // Se define al cargar el módulo (index.ts lo importa) para que Android pueda ejecutarla aunque la app esté cerrada.
@@ -57,7 +59,39 @@ export async function inicioDeJornada(): Promise<string | null> {
   return guardado?.value || null;
 }
 
-export async function iniciarJornada(avisarServidor: () => Promise<unknown>): Promise<void> {
+// Espera a lo más `ms` milisegundos: si se pasa (o falla) devuelve null. La jornada no debe quedar colgada de un GPS o de un servicio de nombres lentos.
+function conLimite<T>(promesa: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolver) => {
+    const t = setTimeout(() => resolver(null), ms);
+    promesa.then((v) => { clearTimeout(t); resolver(v); }, () => { clearTimeout(t); resolver(null); });
+  });
+}
+
+// La zona de trabajo se toma al iniciar la jornada: la posición de ese momento y, si el celular lo logra, el distrito, la provincia y el departamento
+// (con el servicio de nombres del propio teléfono). Si algo falla la jornada igual empieza y el servidor guarda lo que llegue.
+async function zonaActual(): Promise<ZonaJornada> {
+  const posicion = (await conLimite(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), 10_000))
+    ?? (await conLimite(Location.getLastKnownPositionAsync({ maxAge: 120_000 }), 2_000));
+  if (!posicion) return {};
+  const zona: ZonaJornada = {
+    latitud: posicion.coords.latitude, longitud: posicion.coords.longitude,
+    precision: posicion.coords.accuracy ?? undefined, simulada: Boolean((posicion as any).mocked),
+  };
+  const lugares = await conLimite(Location.reverseGeocodeAsync({ latitude: posicion.coords.latitude, longitude: posicion.coords.longitude }), 5_000);
+  const lugar = lugares?.[0];
+  if (lugar) {
+    zona.distrito = lugar.district || lugar.city || undefined;
+    zona.provincia = lugar.subregion || undefined;
+    zona.departamento = lugar.region || undefined;
+  }
+  return zona;
+}
+
+export async function zonaDeLaJornada(): Promise<string | null> {
+  return (await cacheGet<string>(CLAVE_ZONA))?.value || null;
+}
+
+export async function iniciarJornada(avisarServidor: (zona?: ZonaJornada) => Promise<unknown>): Promise<void> {
   const servicios = await Location.hasServicesEnabledAsync();
   if (!servicios) throw new Error("Activa la ubicación (GPS) del dispositivo para iniciar tu jornada.");
   let primer = await Location.getForegroundPermissionsAsync();
@@ -68,9 +102,10 @@ export async function iniciarJornada(avisarServidor: () => Promise<unknown>): Pr
   if (segundo.status !== "granted") {
     throw new Error("Para seguirte con la pantalla apagada o mientras navegas, elige «Permitir todo el tiempo» en los permisos de ubicación de la app.");
   }
-  // Primero se avisa al servidor (así el supervisor ya sabe que sales) y solo entonces se enciende el seguimiento: si no hay
-  // conexión, la jornada no queda a medias.
-  await avisarServidor();
+  // Primero se toma la zona y se avisa al servidor (así el supervisor ya sabe que sales y desde dónde) y solo entonces se enciende el seguimiento:
+  // si no hay conexión, la jornada no queda a medias.
+  const respuesta: any = await avisarServidor(await zonaActual());
+  await cacheSet(CLAVE_ZONA, respuesta?.data?.zona ?? null);
   await Location.startLocationUpdatesAsync(JORNADA_TASK, {
     accuracy: Location.Accuracy.High,
     // Una posición cada 15 s aunque el auditor esté quieto (en una visita, por ejemplo): con una distancia mínima no llegaría ninguna y el
@@ -94,6 +129,7 @@ export async function iniciarJornada(avisarServidor: () => Promise<unknown>): Pr
 export async function terminarJornada(avisarServidor?: () => Promise<unknown>): Promise<boolean> {
   await detenerSeguimiento();
   await cacheSet(CLAVE_INICIO, null);
+  await cacheSet(CLAVE_ZONA, null);
   if (!avisarServidor) return true;
   try { await avisarServidor(); await cacheSet(CLAVE_FIN_PENDIENTE, null); return true; } catch { await cacheSet(CLAVE_FIN_PENDIENTE, true); return false; }
 }
