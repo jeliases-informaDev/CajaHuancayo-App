@@ -8,7 +8,8 @@ import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import { renderToStaticMarkup } from "react-dom/server";
 import { useAuth } from "../AuthContext";
-import { C } from "../theme";
+import { C, conMayusculas, estadoDeCaso, FI, N } from "../theme";
+import CarruselCasos, { type CasoCarrusel } from "../components/CarruselCasos";
 import GeoFilterBar, { GEO_FILTRO_TODOS, GeoFiltro, matchesGeoFiltro } from "../components/GeoFilterBar";
 import { cargarMuestra } from "../muestra";
 
@@ -81,6 +82,7 @@ function normalizePoint(item: any) {
     asesor: expediente.asesor_responsable,
     prioridad: String(item.prioridad || "MEDIA").toUpperCase(),
     tipo: expediente.tipo_credito || "CONSUMO",
+    estadoAsignacion: item.estado,
   };
 }
 
@@ -235,6 +237,7 @@ export default function MapScreenWeb({ currentLocation }: { refreshRevision?: nu
   const [filter, setFilter] = useState<string>("TODOS");
   const [geoFiltro, setGeoFiltro] = useState<GeoFiltro>(GEO_FILTRO_TODOS);
   const [loading, setLoading] = useState(false);
+  const [verFiltros, setVerFiltros] = useState(false);
   const [camara, setCamara] = useState<Camara | null>(null);
   // Punto de partida simulado: se arrastra "mi ubicación" para planificar la ruta
   // desde otro punto sin perder el GPS real en vivo.
@@ -297,6 +300,12 @@ export default function MapScreenWeb({ currentLocation }: { refreshRevision?: nu
     mover({ modo: "ruta", coords: coordsCercanos });
   }, [claveVista]);
   const verTodo = () => mover({ modo: "ruta", coords: [...points.map((p) => [p.latitud, p.longitud] as [number, number]), ...(origen ? [[origen.latitude, origen.longitude] as [number, number]] : [])] });
+  const casosCarrusel = useMemo<CasoCarrusel[]>(() => (origen ? enRuta : enFiltro).map((p: any) => ({
+    id: p.id, nombres: p.nombres, codigo: p.codigo, direccion: p.direccion, departamento: p.departamento, distrito: p.distrito, tipo: p.tipo, prioridad: p.prioridad,
+    estadoTexto: p.estadoAsignacion ? estadoDeCaso(p.estadoAsignacion) : undefined, latitud: p.latitud, longitud: p.longitud,
+  })), [origen, enRuta, enFiltro]);
+  const departamentos = useMemo(() => Array.from(new Set(points.map((p: any) => conMayusculas(p.departamento)).filter(Boolean))), [points]);
+  const centrarEnCaso = (caso: CasoCarrusel) => mover({ modo: "yo", punto: [caso.latitud, caso.longitud] });
   const centrarme = () => { if (origen) mover({ modo: "yo", punto: [origen.latitude, origen.longitude] }); };
 
   const comoLlegar = (lat: number, lng: number) => {
@@ -309,51 +318,55 @@ export default function MapScreenWeb({ currentLocation }: { refreshRevision?: nu
       <View style={s.header}>
         <View style={s.headRow}>
           <View style={{ flex: 1 }}>
-            <Text style={s.title}>Mapa de mi muestra</Text>
+            <View style={s.tituloFila}>
+              <MaterialCommunityIcons name="folder-outline" size={26} color="#000" />
+              <Text style={s.title} accessibilityRole="header">Mapa de mi muestra</Text>
+            </View>
             <Text style={s.sub}>
-              {origen ? `${enRuta.length} en ruta` : `${enFiltro.length} en tu zona`}
-              {fueraDeFiltro.length ? ` · ${fueraDeFiltro.length} disponible(s)` : ""}
-              {!origen && enFiltro.length ? " · esperando tu ubicación para armar la ruta" : ""}
+              {all.length} {all.length === 1 ? "caso" : "casos"}{departamentos.length === 1 ? ` · Clientes en ${departamentos[0]}` : departamentos.length > 1 ? ` · Clientes en ${departamentos.length} departamentos` : ""}
+              {loading ? " · Actualizando…" : ""}
             </Text>
           </View>
-          <View style={s.live}>
-            <View style={s.dot} />
-            <Text style={s.liveText}>{loading ? "Actualizando" : "En línea"}</Text>
-          </View>
+          <Pressable onPress={() => setVerFiltros((v) => !v)} accessibilityRole="button" accessibilityLabel="Filtros del mapa" accessibilityState={{ expanded: verFiltros }} style={[s.filtrosBtn, verFiltros && s.filtrosBtnOn]}>
+            <MaterialCommunityIcons name="tune-variant" size={22} color={verFiltros ? "#fff" : N.marca} />
+          </Pressable>
         </View>
-        <View style={s.filters}>
-          {filters.map((item) => (
-            <Pressable key={item} onPress={() => setFilter(item)} style={[s.chip, filter === item && s.chipOn]}>
-              <View style={[s.chipDot, { backgroundColor: item === "TODOS" ? "#94A3B8" : colors[item] }]} />
-              <Text style={[s.chipText, filter === item && s.chipTextOn]}>{labels[item]}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <GeoFilterBar items={points} onChange={setGeoFiltro} />
-        {puntoManual ? (
-          <View style={s.simBanner}>
-            <Text style={s.simText}>Ruta simulada desde un punto manual.</Text>
-            <Pressable onPress={() => setPuntoManual(null)}>
-              <Text style={s.simReset}>Usar ubicación en vivo</Text>
-            </Pressable>
-          </View>
-        ) : null}
-        {points.length ? (
-          <View style={s.resumen}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={s.resumenTitulo}>{enFiltro.length} {enFiltro.length === 1 ? "caso" : "casos"} en tu muestra</Text>
-              {siguiente ? (
-                <Text style={s.resumenTexto}>Siguiente: <Text style={s.negrita}>{siguiente.nombres}</Text> · {fmtDistancia(siguiente.distanciaDesdeMi)}{rutaKm > 0 ? ` · ruta de ${fmtDistancia(rutaKm)}` : ""}</Text>
-              ) : null}
-              {lejanos > 0 ? <Text style={s.resumenApagado}>{lejanos} {lejanos === 1 ? "caso está" : "casos están"} a más de 60 km de ti</Text> : null}
-              {incompleto ? <Text style={s.resumenApagado}>Mostrando {incompleto.cargados} de {incompleto.total} casos: acércate a una zona para verlos todos</Text> : null}
+        <View style={[s.filtrosPanel, !verFiltros && { display: "none" }]}>
+            <View style={s.filters}>
+              {filters.map((item) => (
+                <Pressable key={item} onPress={() => setFilter(item)} style={[s.chip, filter === item && s.chipOn]}>
+                  <View style={[s.chipDot, { backgroundColor: item === "TODOS" ? "#94A3B8" : colors[item] }]} />
+                  <Text style={[s.chipText, filter === item && s.chipTextOn]}>{labels[item]}</Text>
+                </Pressable>
+              ))}
             </View>
-            <View style={s.acciones}>
-              {origen ? <Pressable onPress={centrarme} style={s.btn}><Text style={s.btnTxt}>Centrarme</Text></Pressable> : null}
-              <Pressable onPress={verTodo} style={[s.btn, s.btnSec]}><Text style={[s.btnTxt, s.btnTxtSec]}>Ver todo</Text></Pressable>
-            </View>
+            <GeoFilterBar items={points} onChange={setGeoFiltro} />
+            {puntoManual ? (
+              <View style={s.simBanner}>
+                <Text style={s.simText}>Ruta simulada desde un punto manual.</Text>
+                <Pressable onPress={() => setPuntoManual(null)}>
+                  <Text style={s.simReset}>Usar ubicación en vivo</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {points.length ? (
+              <View style={s.resumen}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={s.resumenTitulo}>{enFiltro.length} {enFiltro.length === 1 ? "caso" : "casos"} en tu muestra</Text>
+                  {siguiente ? (
+                    <Text style={s.resumenTexto}>Siguiente: <Text style={s.negrita}>{siguiente.nombres}</Text> · {fmtDistancia(siguiente.distanciaDesdeMi)}{rutaKm > 0 ? ` · ruta de ${fmtDistancia(rutaKm)}` : ""}</Text>
+                  ) : null}
+                  {lejanos > 0 ? <Text style={s.resumenApagado}>{lejanos} {lejanos === 1 ? "caso está" : "casos están"} a más de 60 km de ti</Text> : null}
+                  {incompleto ? <Text style={s.resumenApagado}>Mostrando {incompleto.cargados} de {incompleto.total} casos: acércate a una zona para verlos todos</Text> : null}
+                </View>
+                <View style={s.acciones}>
+                  {origen ? <Pressable onPress={centrarme} style={s.btn}><Text style={s.btnTxt}>Centrarme</Text></Pressable> : null}
+                  <Pressable onPress={verTodo} style={[s.btn, s.btnSec]}><Text style={[s.btnTxt, s.btnTxtSec]}>Ver todo</Text></Pressable>
+                </View>
+              </View>
+            ) : null}
           </View>
-        ) : null}
+        <CarruselCasos casos={casosCarrusel} onCambio={centrarEnCaso} />
       </View>
 
       <View style={s.mapWrap}>
@@ -392,10 +405,14 @@ export default function MapScreenWeb({ currentLocation }: { refreshRevision?: nu
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#EAF1F8" },
-  header: { backgroundColor: "#fff", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, gap: 11, borderBottomWidth: 1, borderBottomColor: C.border },
+  header: { backgroundColor: N.fondo, paddingHorizontal: 16, paddingTop: 24, paddingBottom: 12, gap: 12 },
+  tituloFila: { flexDirection: "row", alignItems: "center", gap: 8 },
+  filtrosBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, borderColor: N.borde, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  filtrosBtnOn: { backgroundColor: N.marca, borderColor: N.marca },
+  filtrosPanel: { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: N.borde, padding: 12, gap: 10 },
   headRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  title: { fontSize: 22, fontWeight: "900", color: C.text },
-  sub: { fontSize: 11, color: C.muted, marginTop: 3 },
+  title: { fontFamily: FI.bold, fontSize: 24, lineHeight: 30, color: "#000" },
+  sub: { fontFamily: FI.reg, fontSize: 14, color: N.apagado, marginTop: 2 },
   live: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#EAFBF5", paddingHorizontal: 9, paddingVertical: 6, borderRadius: 14 },
   dot: { width: 6, height: 6, borderRadius: 6, backgroundColor: C.success },
   liveText: { fontSize: 9, fontWeight: "900", color: C.success },

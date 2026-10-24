@@ -1,10 +1,10 @@
 import React from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { C, money } from "../theme";
+import { conMayusculas, FI, money, N, nombreDePersona } from "../theme";
 import SignaturePad from "../SignaturePad";
-import { BaseCard, CampoCard, Callout, Chips, ReadRow, TextField, YesNoRow } from "./controls";
-import { ESTADOS_NEGOCIO, EXIGE_FICHA, PROPIEDADES_LOCAL, RESULTADOS, TEMA } from "./config";
+import { BaseCard, BotonClaro, CampoCard, Callout, Chips, ReadRow, TextField, YesNoRow } from "./controls";
+import { ESTADOS_NEGOCIO, EXIGE_FICHA, PROPIEDADES_LOCAL, RESULTADOS } from "./config";
 import { bloqueosConforme, distanciaTexto, validarEnvio } from "./validacion";
 import { abrirRuta, tieneCoordenadas } from "./destino";
 import type { Punto } from "./destino";
@@ -19,10 +19,12 @@ const ORIGEN_UBICACION: Record<string, string> = {
 };
 
 const num = (v: any) => (v === null || v === undefined || v === "" || Number.isNaN(Number(v)) ? "-" : Number(v).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const ROJO_ANTIFRAUDE = N.rojoFuerte;
 
 // ---------------------------------------------------------------- 1. Verificación
-export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegir, distanciaM, geo, onVerBase, onNoUbicado, ficha, set }: {
+export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegir, distanciaM, geo, onVerBase, onNoUbicado, onFoto, ficha, set }: {
   expediente: any; plantilla: Plantilla; punto: Punto; puntos: Punto[]; onElegir: (p: Punto) => void; distanciaM: number | null; geo: GeoConfig; onVerBase: () => void; onNoUbicado: () => void;
+  onFoto: (slot: 1 | 2) => void;
   /** Estado de la ficha: en Consumo este paso registra cómo se encontró el negocio o centro de trabajo (la ficha del banco lo pide). */
   ficha?: FichaState; set?: Set;
 }) {
@@ -35,6 +37,15 @@ export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegi
   const lugar = alNegocio ? "negocio" : "domicilio";
   const negocio = alNegocio ? (n.negocios || [])[punto.indice] || {} : null;
   const telefono = alNegocio ? negocio.telefono || e.telefono_cliente || c.telefono_celular : e.telefono_cliente || c.telefono_celular || c.telefono_fijo;
+  const [faltante, setFaltante] = React.useState("");
+  // «No ubicado» se registra aquí mismo: comentario (mínimo 10 caracteres) y foto del lugar; el resto de la ficha no se pide.
+  const registrarNoUbicado = () => {
+    const comentario = (ficha?.comentarioAuditor || "").trim();
+    if (comentario.length < 10) { setFaltante("Escribe un comentario de al menos 10 caracteres sobre lo que encontraste."); return; }
+    if (!ficha?.photo) { setFaltante("Toma la foto del lugar."); return; }
+    setFaltante("");
+    onNoUbicado();
+  };
   return (
     <>
       {puntos.length > 1 ? (
@@ -47,27 +58,28 @@ export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegi
         </BaseCard>
       ) : null}
 
-      <BaseCard title="Cliente a visitar">
-        <Text style={s.cliente}>{e.nombres_cliente}</Text>
-        <ReadRow label="Documento" value={`${e.tipo_documento_cliente || "DNI"} ${e.numero_documento_cliente}`} />
+      <BaseCard title="Información del cliente a visitar">
+        <Text style={s.cliente}>{nombreDePersona(e.nombres_cliente)}</Text>
+        <Text style={s.codigo}>{[e.codigo_expediente, conMayusculas(e.departamento || e.distrito)].filter(Boolean).join(" · ")}</Text>
+        <ReadRow label={e.tipo_documento_cliente || "DNI"} value={e.numero_documento_cliente} />
         {alNegocio ? (
           <>
-            <ReadRow label="Dirección del negocio" value={negocio.direccion} />
-            <ReadRow label="Distrito" value={negocio.distrito || e.distrito} />
-            <ReadRow label="Referencia" value={negocio.referencia} />
-            <ReadRow label="Contacto en el negocio" value={negocio.contacto} />
+            <ReadRow label="Dirección del negocio" value={conMayusculas(negocio.direccion)} vacio="No disponible" />
+            <ReadRow label="Distrito" value={conMayusculas(negocio.distrito || e.distrito)} vacio="No disponible" />
+            <ReadRow label="Referencias" value={negocio.referencia} vacio="No disponibles" />
+            <ReadRow label="Contacto en el negocio" value={negocio.contacto} vacio="No disponible" />
           </>
         ) : (
           <>
-            <ReadRow label="Dirección" value={e.direccion_domicilio} />
-            <ReadRow label="Distrito / provincia" value={`${e.distrito || "-"} / ${e.provincia || "-"}`} />
-            <ReadRow label="Referencia" value={c.referencia_domicilio} />
+            <ReadRow label="Dirección" value={conMayusculas(e.direccion_domicilio)} vacio="No disponible" />
+            <ReadRow label="Distrito / provincia" value={`${conMayusculas(e.distrito) || "No disponible"} / ${conMayusculas(e.provincia) || "No disponible"}`} />
+            <ReadRow label="Referencias" value={c.referencia_domicilio} vacio="No disponibles" />
           </>
         )}
-        {plantilla === "MYPE_V1" ? <ReadRow label="Actividad" value={n.actividad} /> : null}
+        {plantilla === "MYPE_V1" ? <ReadRow label="Actividad" value={conMayusculas(n.actividad)} /> : null}
         <View style={s.actions}>
-          <Pressable onPress={() => abrirRuta(punto)} style={s.actionBtn}><MaterialCommunityIcons name="directions" size={16} color={C.primary} /><Text style={s.actionText}>Cómo llegar</Text></Pressable>
-          {telefono ? <Pressable onPress={() => Linking.openURL(`tel:${String(telefono).replace(/[^\d+]/g, "")}`)} style={s.actionBtn}><MaterialCommunityIcons name="phone-outline" size={16} color={C.primary} /><Text style={s.actionText}>Llamar</Text></Pressable> : null}
+          <BotonClaro icono="map-outline" texto="Ubicación" etiqueta="Cómo llegar" onPress={() => abrirRuta(punto)} />
+          {telefono ? <BotonClaro icono="phone-outline" texto="Llamar" onPress={() => Linking.openURL(`tel:${String(telefono).replace(/[^\d+]/g, "")}`)} /> : null}
         </View>
       </BaseCard>
 
@@ -76,9 +88,9 @@ export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegi
           <>
             <ReadRow label="Origen" value={ORIGEN_UBICACION[punto.origen || ""] || "Coordenadas registradas"} />
             {distanciaM != null ? (
-              <View style={[s.dist, { backgroundColor: distanciaM <= geo.radio ? "#EAFBF5" : "#FFF1F2" }]}>
-                <MaterialCommunityIcons name={distanciaM <= geo.radio ? "map-marker-check-outline" : "map-marker-alert-outline"} size={18} color={distanciaM <= geo.radio ? C.success : C.danger} />
-                <Text style={[s.distText, { color: distanciaM <= geo.radio ? "#0A7A56" : "#B42318" }]}>
+              <View style={[s.dist, { backgroundColor: distanciaM <= geo.radio ? N.verdeFondo : N.rojoFondo }]}>
+                <MaterialCommunityIcons name={distanciaM <= geo.radio ? "map-marker-check-outline" : "map-marker-alert-outline"} size={18} color={distanciaM <= geo.radio ? N.verdeTexto : N.rojoTexto} />
+                <Text style={[s.distText, { color: distanciaM <= geo.radio ? N.verdeTexto : N.rojoTexto }]}>
                   Estás a {distanciaTexto(distanciaM)} del {lugar} {distanciaM <= geo.radio ? "(dentro del rango)" : `(el máximo es ${geo.radio} m)`}
                 </Text>
               </View>
@@ -90,25 +102,40 @@ export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegi
       </BaseCard>
 
       {plantilla === "CONSUMO_V1" && ficha && set ? (
-        <CampoCard title="Negocio o centro de trabajo" color={TEMA.CONSUMO_V1.color} hint="La ficha del banco lo pide también en Consumo. Si no aplica, déjalo sin marcar.">
-          <Text style={s.label}>¿Cómo encontraste el negocio o centro de trabajo del cliente?</Text>
-          <Chips options={ESTADOS_NEGOCIO} value={ficha.estadoNegocio} onChange={(v) => set({ estadoNegocio: ficha.estadoNegocio === v ? "" : v })} color={TEMA.CONSUMO_V1.color} />
+        <CampoCard title="Negocio o centro de trabajo" hint="La ficha del banco lo pide también en Consumo. Si no aplica, déjalo sin marcar.">
+          <Text style={s.pregunta}>¿Cómo encontraste el negocio o centro de trabajo del cliente?</Text>
+          <Chips options={ESTADOS_NEGOCIO} value={ficha.estadoNegocio} onChange={(v) => set({ estadoNegocio: ficha.estadoNegocio === v ? "" : v })} />
         </CampoCard>
       ) : null}
 
       <BaseCard title="Resumen del crédito">
         <ReadRow label="Monto desembolsado" value={e.monto_desembolso ? money(e.monto_desembolso) : "-"} />
-        <ReadRow label="Saldo de capital" value={cr.saldo_capital != null ? num(cr.saldo_capital) : "-"} />
+        <ReadRow label="Saldo del capital" value={cr.saldo_capital != null ? num(cr.saldo_capital) : "-"} />
         <ReadRow label="Estado" value={cr.estado} />
         <ReadRow label="Destino" value={cr.destino} />
-        <ReadRow label="Asesor responsable" value={e.asesor_responsable} />
-        <Pressable onPress={onVerBase} style={s.linkRow}><MaterialCommunityIcons name="database-eye-outline" size={16} color={C.primary} /><Text style={s.actionText}>Ver todos los datos de la base</Text></Pressable>
+        <ReadRow label="Asesor responsable" value={nombreDePersona(e.asesor_responsable)} />
+        <View style={s.actions}><BotonClaro icono="database-outline" texto="Ver todos los datos de la base" onPress={onVerBase} /></View>
       </BaseCard>
 
       <View style={s.noEncontrado}>
-        <Text style={s.noTitle}>¿No encontraste al cliente?</Text>
-        <Text style={s.mini}>Registra la visita como «No ubicado»: solo necesitas un comentario y la foto del lugar.</Text>
-        <Pressable onPress={onNoUbicado} style={s.noBtn}><MaterialCommunityIcons name="map-marker-remove-outline" size={16} color={C.danger} /><Text style={[s.actionText, { color: C.danger }]}>Registrar como No ubicado</Text></Pressable>
+        <Text style={s.noTitle} accessibilityRole="header">¿No encontraste al cliente?</Text>
+        <Text style={s.noTexto}>Registra la visita como no ubicado. Solo necesitas un comentario y la foto del lugar.</Text>
+        {ficha && set ? (
+          <>
+            <TextField label="Comentario" value={ficha.comentarioAuditor} onChangeText={(v) => set({ comentarioAuditor: v })} placeholder="Escribe un comentario breve" />
+            <View style={s.field}>
+              <Text style={s.noLabel}>Foto del lugar</Text>
+              <Pressable onPress={() => onFoto(1)} accessibilityRole="button" style={s.fotoLugar}>
+                {ficha.photo ? <Image source={{ uri: ficha.photo }} style={s.fotoMini} /> : <MaterialCommunityIcons name="camera-outline" size={20} color={N.marca} />}
+                <Text style={s.fotoLugarTexto}>{ficha.photo ? "Foto principal ✓ (toca para repetir)" : "Agrega una foto del lugar"}</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : null}
+        {faltante ? <Callout tipo="error">{faltante}</Callout> : null}
+        <Pressable onPress={registrarNoUbicado} accessibilityRole="button" style={({ pressed }) => [s.noBtn, pressed && { opacity: 0.85 }]}>
+          <Text style={s.noBtnTexto}>Registrar como no ubicado</Text>
+        </Pressable>
       </View>
     </>
   );
@@ -121,28 +148,28 @@ export function PasoNegocio({ s: st, set, expediente, onVerBase }: { s: FichaSta
   return (
     <>
       <BaseCard title="Según la base" hint="Compara lo que ves con lo que registró el asesor.">
-        <ReadRow label="Actividad" value={n.actividad} />
+        <ReadRow label="Actividad" value={conMayusculas(n.actividad)} />
         <ReadRow label="Antigüedad" value={n.antiguedad_meses != null ? `${n.antiguedad_meses} meses` : n.antiguedad_texto} />
         {locales.map((l, i) => (
           <View key={i} style={s.localBox}>
-            <ReadRow label={`Local ${locales.length > 1 ? i + 1 : ""}`.trim()} value={l.direccion} />
+            <ReadRow label={`Local ${locales.length > 1 ? i + 1 : ""}`.trim()} value={conMayusculas(l.direccion)} />
             <ReadRow label="Referencia" value={l.referencia} />
           </View>
         ))}
-        <Pressable onPress={onVerBase} style={s.linkRow}><MaterialCommunityIcons name="database-eye-outline" size={16} color={C.primary} /><Text style={s.actionText}>Ver más datos de la base</Text></Pressable>
+        <View style={s.actions}><BotonClaro icono="database-outline" texto="Ver más datos de la base" onPress={onVerBase} /></View>
       </BaseCard>
 
-      <CampoCard title="Estado del negocio" color={TEMA.MYPE_V1.color}>
-        <Text style={s.label}>¿Cómo encontraste el negocio? <Text style={{ color: C.danger }}>*</Text></Text>
-        <Chips options={ESTADOS_NEGOCIO} value={st.estadoNegocio} onChange={(v) => set({ estadoNegocio: v })} color={TEMA.MYPE_V1.color} />
+      <CampoCard title="Estado del negocio">
+        <Text style={s.pregunta}>¿Cómo encontraste el negocio? <Text style={{ color: N.rojo }}>*</Text></Text>
+        <Chips options={ESTADOS_NEGOCIO} value={st.estadoNegocio} onChange={(v) => set({ estadoNegocio: v })} />
         {st.estadoNegocio && st.estadoNegocio !== "EN_FUNCIONAMIENTO" ? (
-          <View style={{ marginTop: 10 }}><Callout tipo="aviso">Un negocio {st.estadoNegocio === "INOPERATIVO" ? "inoperativo" : "de terceros"} no puede registrarse como Conforme: usa Observado y explica el motivo.</Callout></View>
+          <Callout tipo="aviso">Un negocio {st.estadoNegocio === "INOPERATIVO" ? "inoperativo" : "de terceros"} no puede registrarse como Conforme: usa Observado y explica el motivo.</Callout>
         ) : null}
-        <Text style={[s.label, { marginTop: 14 }]}>Propiedad del local <Text style={{ color: C.danger }}>*</Text></Text>
-        <Chips options={PROPIEDADES_LOCAL} value={st.propiedadLocal} onChange={(v) => set({ propiedadLocal: v })} color={TEMA.MYPE_V1.color} />
+        <Text style={[s.pregunta, { marginTop: 8 }]}>Propiedad del local <Text style={{ color: N.rojo }}>*</Text></Text>
+        <Chips options={PROPIEDADES_LOCAL} value={st.propiedadLocal} onChange={(v) => set({ propiedadLocal: v })} />
       </CampoCard>
 
-      <CampoCard title="Comentario general del negocio" color={TEMA.MYPE_V1.color}>
+      <CampoCard title="Comentario general del negocio">
         <TextField value={st.comentarioNegocio} onChangeText={(v) => set({ comentarioNegocio: v })} multiline placeholder="Situación observada: stock, movimiento de clientes, instalaciones…" />
       </CampoCard>
     </>
@@ -156,11 +183,11 @@ function BloqueConformidad({ titulo, detalle, valor, onChange }: { titulo: strin
       <Text style={s.confTitle}>{titulo}</Text>
       <Text style={s.mini}>{detalle}</Text>
       <View style={s.confBtns}>
-        <Pressable onPress={() => onChange({ ...valor, conforme: true })} style={[s.confBtn, valor.conforme === true && { backgroundColor: C.success, borderColor: C.success }]}>
-          <MaterialCommunityIcons name="check" size={16} color={valor.conforme === true ? "#fff" : C.muted} /><Text style={[s.confBtnText, valor.conforme === true && { color: "#fff" }]}>Conforme</Text>
+        <Pressable onPress={() => onChange({ ...valor, conforme: true })} style={[s.confBtn, valor.conforme === true && { backgroundColor: N.verdeTexto, borderColor: N.verdeTexto }]}>
+          <MaterialCommunityIcons name="check" size={16} color={valor.conforme === true ? "#fff" : N.apagado} /><Text style={[s.confBtnText, valor.conforme === true && { color: "#fff" }]}>Conforme</Text>
         </Pressable>
-        <Pressable onPress={() => onChange({ ...valor, conforme: false })} style={[s.confBtn, valor.conforme === false && { backgroundColor: C.warning, borderColor: C.warning }]}>
-          <MaterialCommunityIcons name="alert-outline" size={16} color={valor.conforme === false ? "#fff" : C.muted} /><Text style={[s.confBtnText, valor.conforme === false && { color: "#fff" }]}>Observado</Text>
+        <Pressable onPress={() => onChange({ ...valor, conforme: false })} style={[s.confBtn, valor.conforme === false && { backgroundColor: N.ambar, borderColor: N.ambar }]}>
+          <MaterialCommunityIcons name="alert-outline" size={16} color={valor.conforme === false ? "#fff" : N.apagado} /><Text style={[s.confBtnText, valor.conforme === false && { color: "#fff" }]}>Observado</Text>
         </Pressable>
       </View>
       {valor.conforme === false ? <TextField value={valor.comentario} onChangeText={(v) => onChange({ ...valor, comentario: v })} placeholder="¿Qué no cuadra con lo que viste? (mín. 5 caracteres)" multiline /> : null}
@@ -183,11 +210,11 @@ export function PasoEvaluacion({ s: st, set, expediente, onVerBase }: { s: Ficha
           <ReadRow label="Capacidad de pago" value={num(p.resultados?.capacidad_pago)} />
           <ReadRow label="Total activo" value={num(p.balance?.total_activo)} />
           <ReadRow label="Patrimonio" value={num(p.balance?.patrimonio)} />
-          <Pressable onPress={onVerBase} style={s.linkRow}><MaterialCommunityIcons name="database-eye-outline" size={16} color={C.primary} /><Text style={s.actionText}>Ver balance y estado de resultados completos</Text></Pressable>
+          <View style={s.actions}><BotonClaro icono="database-outline" texto="Ver balance y estado de resultados completos" onPress={onVerBase} /></View>
         </BaseCard>
       ) : <Callout tipo="aviso">La base no trae evaluación financiera de este crédito. Marca cada bloque según lo que puedas verificar.</Callout>}
 
-      <CampoCard title="Análisis y conformidad" color={TEMA.MYPE_V1.color} hint="Contrasta los números del asesor con lo que ves en el negocio.">
+      <CampoCard title="Análisis y conformidad" hint="Contrasta los números del asesor con lo que ves en el negocio.">
         <BloqueConformidad titulo="Ingresos del negocio" detalle="Ventas, frecuencia y precios son coherentes con el movimiento real." valor={st.conf.ingresos} onChange={(c) => set({ conf: { ...st.conf, ingresos: c } })} />
         <BloqueConformidad titulo="Balance general" detalle="Existencias, activos y deudas coinciden con lo observado." valor={st.conf.balance} onChange={(c) => set({ conf: { ...st.conf, balance: c } })} />
         <BloqueConformidad titulo="Estado de resultados" detalle="Gastos y utilidad son razonables para este negocio." valor={st.conf.resultados} onChange={(c) => set({ conf: { ...st.conf, resultados: c } })} />
@@ -197,17 +224,16 @@ export function PasoEvaluacion({ s: st, set, expediente, onVerBase }: { s: Ficha
 }
 
 // ---------------------------------------------------------------- 4. Cuestionario
-export function PasoCuestionario({ s: st, set, plantilla }: { s: FichaState; set: Set; plantilla: Plantilla }) {
-  const color = TEMA[plantilla].color;
+export function PasoCuestionario({ s: st, set }: { s: FichaState; set: Set; plantilla: Plantilla }) {
   return (
     <>
-      <CampoCard title="Verificación anti-fraude" color={C.danger} hint="Las 3 preguntas son obligatorias.">
+      <CampoCard title="Verificación Anti-fraude" acento={ROJO_ANTIFRAUDE} hint="Las 3 preguntas son obligatorias">
         <YesNoRow required label="¿Alguna vez entregó dinero al asesor por alguna razón?" value={st.entregoDinero} onChange={(v) => set({ entregoDinero: v })} />
         <YesNoRow required label="¿Pagó alguna comisión adicional por el desembolso?" value={st.pagoComision} onChange={(v) => set({ pagoComision: v })} />
         <YesNoRow required label="¿Recibió el total del monto solicitado?" value={st.recibioMontoTotal} onChange={(v) => set({ recibioMontoTotal: v })} />
       </CampoCard>
 
-      <CampoCard title="Crédito y hogar" color={color}>
+      <CampoCard title="Crédito y Hogar" acento={N.marino}>
         <YesNoRow label="¿Cónyuge tiene conocimiento del préstamo?" value={st.conyugeConoce} onChange={(v) => set({ conyugeConoce: v })} />
         <YesNoRow label="¿Tiene créditos paralelos?" value={st.creditosParalelos} onChange={(v) => set({ creditosParalelos: v })} />
         <YesNoRow label="¿Comparte el dinero del crédito con otra persona?" value={st.comparteDinero} onChange={(v) => set({ comparteDinero: v })} />
@@ -215,7 +241,7 @@ export function PasoCuestionario({ s: st, set, plantilla }: { s: FichaState; set
         <TextField label="¿Dónde realiza sus pagos?" value={st.dondePaga} onChangeText={(v) => set({ dondePaga: v })} placeholder="Agencia, agente, app, etc." />
       </CampoCard>
 
-      <CampoCard title="Microseguro" color={color}>
+      <CampoCard title="Microseguro" acento={N.marino}>
         <YesNoRow label="¿Tiene microseguro?" value={st.tieneMicroseguro} onChange={(v) => set({ tieneMicroseguro: v, ...(v === false ? { infoMicroseguro: null, conformeMicroseguro: null, comentarioMicroseguro: "" } : {}) })} />
         {st.tieneMicroseguro === true ? (
           <>
@@ -230,16 +256,15 @@ export function PasoCuestionario({ s: st, set, plantilla }: { s: FichaState; set
 }
 
 // ---------------------------------------------------------------- 5. Otros datos
-export function PasoOtros({ s: st, set, plantilla }: { s: FichaState; set: Set; plantilla: Plantilla }) {
-  const color = TEMA[plantilla].color;
+export function PasoOtros({ s: st, set }: { s: FichaState; set: Set; plantilla: Plantilla }) {
   const cambiarCliente = (i: number, patch: Partial<OtroCliente>) => set({ otrosClientes: st.otrosClientes.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
   const cambiarIngreso = (i: number, patch: Partial<OtroIngreso>) => set({ otrosIngresos: st.otrosIngresos.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
   return (
     <>
-      <CampoCard title="Otros clientes que domician en la vivienda" color={color} hint="Solo si hay otras personas con crédito en la misma vivienda.">
+      <CampoCard title="Otros clientes que viven en la vivienda" acento={N.marino} hint="Solo si hay otras personas con crédito en la misma vivienda">
         {st.otrosClientes.map((x, i) => (
           <View key={i} style={s.itemBox}>
-            <View style={s.itemHead}><Text style={s.itemTitle}>Persona {i + 1}</Text><Pressable onPress={() => set({ otrosClientes: st.otrosClientes.filter((_, j) => j !== i) })} hitSlop={8}><MaterialCommunityIcons name="trash-can-outline" size={18} color={C.danger} /></Pressable></View>
+            <View style={s.itemHead}><Text style={s.itemTitle}>Persona {i + 1}</Text><Pressable onPress={() => set({ otrosClientes: st.otrosClientes.filter((_, j) => j !== i) })} hitSlop={8} accessibilityLabel={`Quitar persona ${i + 1}`}><MaterialCommunityIcons name="trash-can-outline" size={18} color={N.rojoTexto} /></Pressable></View>
             <TextField label="Nombre" value={x.nombre} onChangeText={(v) => cambiarCliente(i, { nombre: v })} />
             <TextField label="Parentesco" value={x.parentesco} onChangeText={(v) => cambiarCliente(i, { parentesco: v })} />
             <TextField label="Actividad" value={x.actividad} onChangeText={(v) => cambiarCliente(i, { actividad: v })} />
@@ -247,24 +272,24 @@ export function PasoOtros({ s: st, set, plantilla }: { s: FichaState; set: Set; 
           </View>
         ))}
         {st.otrosClientes.length < 5 ? (
-          <Pressable onPress={() => set({ otrosClientes: [...st.otrosClientes, { nombre: "", parentesco: "", actividad: "", antiguedad: "" }] })} style={s.addBtn}><MaterialCommunityIcons name="plus-circle-outline" size={18} color={C.primary} /><Text style={s.actionText}>Agregar persona</Text></Pressable>
+          <Pressable onPress={() => set({ otrosClientes: [...st.otrosClientes, { nombre: "", parentesco: "", actividad: "", antiguedad: "" }] })} style={s.addBtn} accessibilityRole="button"><MaterialCommunityIcons name="plus-circle-outline" size={20} color={N.marca} /><Text style={s.addText}>Agregar persona</Text></Pressable>
         ) : null}
       </CampoCard>
 
-      <CampoCard title="Otros pasivos del titular y cónyuge" color={color}>
+      <CampoCard title="Otros pasivos del titular y cónyuge" acento={N.marino}>
         <TextField value={st.otrosPasivos} onChangeText={(v) => set({ otrosPasivos: v })} placeholder="Deudas o compromisos que no figuran en la base (opcional)" multiline maxLength={500} />
       </CampoCard>
 
-      <CampoCard title="Otros ingresos (si los tuviera)" color={color} hint="Hasta 3 ingresos adicionales.">
+      <CampoCard title="Otros ingresos (si los tuviera)" acento={N.marino} hint="Hasta 3 ingresos adicionales">
         {st.otrosIngresos.map((x, i) => (
           <View key={i} style={s.itemBox}>
-            <View style={s.itemHead}><Text style={s.itemTitle}>Ingreso {i + 1}</Text><Pressable onPress={() => set({ otrosIngresos: st.otrosIngresos.filter((_, j) => j !== i) })} hitSlop={8}><MaterialCommunityIcons name="trash-can-outline" size={18} color={C.danger} /></Pressable></View>
+            <View style={s.itemHead}><Text style={s.itemTitle}>Ingreso {i + 1}</Text><Pressable onPress={() => set({ otrosIngresos: st.otrosIngresos.filter((_, j) => j !== i) })} hitSlop={8} accessibilityLabel={`Quitar ingreso ${i + 1}`}><MaterialCommunityIcons name="trash-can-outline" size={18} color={N.rojoTexto} /></Pressable></View>
             <TextField label="Origen" value={x.origen} onChangeText={(v) => cambiarIngreso(i, { origen: v })} />
             <TextField label="Monto mensual (S/)" value={x.monto} onChangeText={(v) => cambiarIngreso(i, { monto: v.replace(/[^\d.]/g, "") })} keyboardType="decimal-pad" />
           </View>
         ))}
         {st.otrosIngresos.length < 3 ? (
-          <Pressable onPress={() => set({ otrosIngresos: [...st.otrosIngresos, { origen: "", monto: "" }] })} style={s.addBtn}><MaterialCommunityIcons name="plus-circle-outline" size={18} color={C.primary} /><Text style={s.actionText}>Agregar ingreso</Text></Pressable>
+          <Pressable onPress={() => set({ otrosIngresos: [...st.otrosIngresos, { origen: "", monto: "" }] })} style={s.addBtn} accessibilityRole="button"><MaterialCommunityIcons name="plus-circle-outline" size={20} color={N.marca} /><Text style={s.addText}>Agregar ingreso</Text></Pressable>
         ) : null}
       </CampoCard>
     </>
@@ -281,30 +306,20 @@ export function PasoCierre({ s: st, set, plantilla, distanciaM, geo, irA }: { s:
   };
   return (
     <>
-      <CampoCard title="Resultado de la visita" color={TEMA[plantilla].color}>
-        <View style={s.resultGrid}>
-          {RESULTADOS.map((item) => {
-            const bloqueado = item.value === "CONFORME" && motivos.length > 0;
-            const on = st.resultado === item.value;
-            return (
-              <Pressable key={item.value} onPress={() => elegir(item.value)} style={[s.resultChip, on && s.resultChipOn, bloqueado && s.resultChipOff]}>
-                <MaterialCommunityIcons name={item.icon as any} size={16} color={on ? "#fff" : bloqueado ? "#C3CCDB" : C.muted} />
-                <Text style={[s.resultChipText, on && s.resultChipTextOn, bloqueado && { color: "#C3CCDB" }]}>{item.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {motivos.length ? <View style={{ marginTop: 10 }}><Callout tipo="aviso">No puedes cerrar como Conforme: {motivos.join("; ")}.</Callout></View> : null}
+      <CampoCard title="Resultado de la visita">
+        {/* «No ubicado» se registra desde el primer paso, con su propio comentario y foto */}
+        <Chips options={RESULTADOS.filter((r) => r.value !== "NO_UBICADO").map((r) => ({ value: r.value, label: r.label }))} value={st.resultado} onChange={elegir} disabled={motivos.length ? ["CONFORME"] : []} />
+        {motivos.length ? <Callout tipo="aviso">No puedes cerrar como Conforme: {motivos.join("; ")}.</Callout> : null}
       </CampoCard>
 
       {plantilla === "CONSUMO_V1" ? (
-        <CampoCard title="Comentario general" color={TEMA[plantilla].color}>
+        <CampoCard title="Comentario general">
           <TextField value={st.comentarioNegocio} onChangeText={(v) => set({ comentarioNegocio: v })} multiline placeholder="Situación observada del cliente" />
         </CampoCard>
       ) : null}
 
-      <CampoCard title="Comentarios finales del auditor" color={TEMA[plantilla].color} hint={st.resultado !== "CONFORME" ? "Obligatorio para este resultado (mínimo 10 caracteres)." : undefined}>
-        <TextField value={st.comentarioAuditor} onChangeText={(v) => set({ comentarioAuditor: v })} multiline required={st.resultado !== "CONFORME"} placeholder="Observaciones, incidencias encontradas en la visita" />
+      <CampoCard title="Comentario del auditor" hint={st.resultado !== "CONFORME" ? "Obligatorio para este resultado (mínimo 10 caracteres)." : undefined}>
+        <TextField value={st.comentarioAuditor} onChangeText={(v) => set({ comentarioAuditor: v })} multiline required={st.resultado !== "CONFORME"} placeholder="Observaciones e incidencias observadas en la visita" />
       </CampoCard>
 
       {problema ? (
@@ -317,27 +332,37 @@ export function PasoCierre({ s: st, set, plantilla, distanciaM, geo, irA }: { s:
 }
 
 // ---------------------------------------------------------------- 7. Evidencias
+function FotoTile({ uri, rotulo, hecho, onPress }: { uri: string; rotulo: string; hecho: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={uri ? hecho : rotulo} style={({ pressed }) => [s.photoBox, pressed && { opacity: 0.8 }]}>
+      {uri ? <Image source={{ uri }} style={s.photoImg} resizeMode="cover" /> : null}
+      {uri ? (
+        <View style={s.photoOk}><MaterialCommunityIcons name="check-circle" size={20} color={N.verde} /><Text style={s.photoOkTexto}>{hecho}</Text></View>
+      ) : (
+        <>
+          <MaterialCommunityIcons name="tray-arrow-up" size={26} color={N.apagado} />
+          <Text style={s.photoLabel}>{rotulo}</Text>
+        </>
+      )}
+    </Pressable>
+  );
+}
+
 export function PasoEvidencias({ s: st, set, onFoto, signatureKey }: { s: FichaState; set: Set; onFoto: (slot: 1 | 2) => void; signatureKey: number }) {
   const llegoAlCliente = EXIGE_FICHA.includes(st.resultado);
   return (
     <>
-      <CampoCard title="Evidencia fotográfica" color={C.warning} hint="Solo se aceptan fotos tomadas en el momento con la cámara de la app.">
+      <CampoCard title="Evidencia fotográfica" hint="Solo se aceptan fotos tomadas en el momento con la cámara de la app">
         <View style={s.photoRow}>
-          <Pressable onPress={() => onFoto(1)} style={s.photoBox}>
-            <MaterialCommunityIcons name={st.photo ? "check-circle" : "camera-plus-outline"} size={28} color={st.photo ? C.success : C.muted} />
-            <Text style={s.photoLabel}>{st.photo ? "Foto principal ✓ (toca para repetir)" : "Foto principal *"}</Text>
-          </Pressable>
-          <Pressable onPress={() => onFoto(2)} style={s.photoBox}>
-            <MaterialCommunityIcons name={st.photo2 ? "check-circle" : "camera-plus-outline"} size={28} color={st.photo2 ? C.success : C.muted} />
-            <Text style={s.photoLabel}>{st.photo2 ? "Foto adicional ✓" : "Foto adicional (opcional)"}</Text>
-          </Pressable>
+          <FotoTile uri={st.photo} rotulo="Foto principal" hecho="Foto principal ✓" onPress={() => onFoto(1)} />
+          <FotoTile uri={st.photo2} rotulo="Foto adicional (opcional)" hecho="Foto adicional ✓" onPress={() => onFoto(2)} />
         </View>
       </CampoCard>
 
       {llegoAlCliente ? (
-        <CampoCard title="Firma del cliente" color={C.warning}>
-          <TextField label="Documento de quien firma" required value={st.firmanteDocumento} onChangeText={(v) => set({ firmanteDocumento: v.replace(/\s/g, "") })} maxLength={20} />
-          <View style={{ marginTop: 10 }}>
+        <CampoCard title="Firma del cliente">
+          <TextField label="Documento de quien firma" required value={st.firmanteDocumento} onChangeText={(v) => set({ firmanteDocumento: v.replace(/\s/g, "") })} placeholder="DNI" maxLength={20} />
+          <View style={{ marginTop: 6 }}>
             <SignaturePad key={signatureKey} onChange={(v: string) => set({ signature: v })} />
           </View>
         </CampoCard>
@@ -347,35 +372,38 @@ export function PasoEvidencias({ s: st, set, onFoto, signatureKey }: { s: FichaS
 }
 
 const s = StyleSheet.create({
-  cliente: { fontSize: 17, fontWeight: "800", color: C.ink, marginBottom: 6 },
-  mini: { fontSize: 11, color: C.muted, lineHeight: 15 },
-  label: { fontSize: 12.5, fontWeight: "700", color: C.text },
-  actions: { flexDirection: "row", gap: 8, marginTop: 10 },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: "#fff", borderWidth: 1, borderColor: "#DCE6F7" },
-  actionText: { fontSize: 12.5, fontWeight: "800", color: C.primary },
-  linkRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#DCE6F7" },
-  dist: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 12, marginTop: 6 },
-  distText: { flex: 1, fontSize: 12.5, fontWeight: "800" },
-  noEncontrado: { padding: 14, borderRadius: 16, borderWidth: 1, borderStyle: "dashed", borderColor: "#F3B8BC", gap: 6 },
-  noTitle: { fontSize: 13, fontWeight: "900", color: C.text },
-  noBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginTop: 4 },
-  localBox: { borderTopWidth: 1, borderTopColor: "#DCE6F7", marginTop: 6, paddingTop: 4 },
-  confBox: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F1F5F9", gap: 4 },
-  confTitle: { fontSize: 13, fontWeight: "900", color: C.text },
+  cliente: { fontFamily: FI.bold, fontSize: 16, color: N.tinta },
+  codigo: { fontFamily: FI.reg, fontSize: 14, color: N.apagado, marginBottom: 4 },
+  mini: { fontFamily: FI.reg, fontSize: 12.5, color: N.apagado, lineHeight: 17 },
+  pregunta: { fontFamily: FI.reg, fontSize: 14, lineHeight: 20, color: N.apagado },
+  actions: { flexDirection: "row", gap: 10, marginTop: 8 },
+  dist: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10, marginTop: 4 },
+  distText: { flex: 1, fontFamily: FI.semi, fontSize: 13 },
+  noEncontrado: { padding: 16, borderRadius: 12, borderWidth: 1, borderColor: N.ambarBorde, backgroundColor: N.ambarFondo, gap: 8 },
+  noTitle: { fontFamily: FI.semi, fontSize: 16, color: N.ambar },
+  noTexto: { fontFamily: FI.reg, fontSize: 14, lineHeight: 20, color: N.ambar },
+  noLabel: { fontFamily: FI.reg, fontSize: 13.5, color: N.ambar },
+  field: { gap: 6, marginTop: 4 },
+  fotoLugar: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: N.borde, borderRadius: 10, paddingHorizontal: 14, backgroundColor: "#fff" },
+  fotoLugarTexto: { fontFamily: FI.reg, fontSize: 14, color: N.apagado, flex: 1 },
+  fotoMini: { width: 32, height: 32, borderRadius: 6 },
+  noBtn: { minHeight: 48, borderRadius: 10, backgroundColor: N.rojoBoton, alignItems: "center", justifyContent: "center", marginTop: 6 },
+  noBtnTexto: { fontFamily: FI.semi, fontSize: 15, color: "#fff" },
+  localBox: { borderTopWidth: 1, borderTopColor: N.borde2, marginTop: 6, paddingTop: 4 },
+  confBox: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: N.borde2, gap: 4 },
+  confTitle: { fontFamily: FI.semi, fontSize: 14, color: N.tinta },
   confBtns: { flexDirection: "row", gap: 8, marginTop: 6 },
-  confBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff" },
-  confBtnText: { fontSize: 12.5, fontWeight: "800", color: C.muted },
-  itemBox: { borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingTop: 8, marginTop: 8 },
+  confBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: N.borde, backgroundColor: "#fff" },
+  confBtnText: { fontFamily: FI.semi, fontSize: 13, color: N.apagado },
+  itemBox: { borderTopWidth: 1, borderTopColor: N.borde2, paddingTop: 8, marginTop: 8 },
   itemHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  itemTitle: { fontSize: 12.5, fontWeight: "900", color: C.text },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, alignSelf: "flex-start", paddingVertical: 6 },
-  resultGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  resultChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff" },
-  resultChipOn: { backgroundColor: C.primary, borderColor: C.primary },
-  resultChipOff: { backgroundColor: "#F8FAFD", borderStyle: "dashed" },
-  resultChipText: { fontSize: 12.5, fontWeight: "800", color: C.muted },
-  resultChipTextOn: { color: "#fff" },
-  photoRow: { flexDirection: "row", gap: 10 },
-  photoBox: { flex: 1, minHeight: 96, borderRadius: 14, borderWidth: 1, borderColor: C.border, borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#F9FBFE", padding: 6 },
-  photoLabel: { fontSize: 11, fontWeight: "700", color: C.muted, textAlign: "center" },
+  itemTitle: { fontFamily: FI.semi, fontSize: 13.5, color: N.tinta },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, alignSelf: "flex-start", paddingVertical: 6 },
+  addText: { fontFamily: FI.semi, fontSize: 15, color: N.marca },
+  photoRow: { flexDirection: "row", gap: 12 },
+  photoBox: { flex: 1, minHeight: 130, borderRadius: 20, borderWidth: 1, borderColor: N.borde, alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#fff", padding: 10, overflow: "hidden" },
+  photoImg: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
+  photoOk: { position: "absolute", left: 8, right: 8, bottom: 8, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10 },
+  photoOkTexto: { fontFamily: FI.semi, fontSize: 12, color: N.tinta, flex: 1 },
+  photoLabel: { fontFamily: FI.semi, fontSize: 13.5, color: N.tinta, textAlign: "center" },
 });

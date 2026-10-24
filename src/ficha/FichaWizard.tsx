@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, BackHandler, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -9,11 +8,11 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ScreenCapture from "expo-screen-capture";
 import NetInfo from "@react-native-community/netinfo";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { C, F, G } from "../theme";
+import { FI, N } from "../theme";
 import { getAuditVisitFix } from "../useAuditorLocation";
 import { checkDeviceIntegrity } from "../deviceIntegrity";
 import { cacheGet, cacheSet, createOfflineVisitId, enqueueVisit, syncPendingVisits } from "../offlineSync";
-import { PASOS, TEMA, plantillaDe } from "./config";
+import { PASOS, plantillaDe } from "./config";
 import { Callout } from "./controls";
 import { PasoCierre, PasoCuestionario, PasoEvaluacion, PasoEvidencias, PasoNegocio, PasoOtros, PasoVerificacion } from "./Pasos";
 import Referencia, { TabRef } from "./Referencia";
@@ -30,19 +29,21 @@ function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number)
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+// Lo que se le cuenta al auditor cuando termina de enviar (lo muestra Mi muestra en un aviso, porque la ficha ya se cerró).
+export type ResultadoEnvio = { tono: "ok" | "guardada" | "rechazada"; titulo: string; texto: string };
+
 type Props = {
   asignacion: any;
   geo: GeoConfig;
   currentLocation?: { latitude: number; longitude: number } | null;
   onClose: () => void;
-  onSent: () => void;
+  onSent: (resultado?: ResultadoEnvio) => void;
 };
 
 export default function FichaWizard({ asignacion, geo, currentLocation, onClose, onSent }: Props) {
   const expediente = asignacion.expediente;
   const idExpediente = Number(expediente.id_expediente);
   const plantilla = plantillaDe(expediente);
-  const tema = TEMA[plantilla];
   const pasos = PASOS[plantilla];
 
   const [s, setS] = useState<FichaState>(() => estadoInicial(String(expediente.numero_documento_cliente || "").trim()));
@@ -166,18 +167,20 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
   };
 
   // ----- envío
-  const confirmarEnvio = () => {
+  const confirmarEnvio = (ficha: FichaState = s) => {
     setError("");
-    const problema = validarEnvio(s, plantilla, distanciaM, geo.radio);
+    const problema = validarEnvio(ficha, plantilla, distanciaM, geo.radio);
     if (problema) { setError(problema.mensaje); irAPaso(problema.paso); return; }
     Alert.alert(
       "Revisa antes de enviar",
-      `Resultado: ${s.resultado}.\n\nUna vez enviada, la ficha queda cerrada y no se puede editar. ¿Confirmas que toda la información es correcta?`,
-      [{ text: "Revisar de nuevo", style: "cancel" }, { text: "Confirmar y enviar", onPress: () => guardar() }],
+      `Resultado: ${ficha.resultado}.\n\nUna vez enviada, la ficha queda cerrada y no se puede editar. ¿Confirmas que toda la información es correcta?`,
+      [{ text: "Revisar de nuevo", style: "cancel" }, { text: "Confirmar y enviar", onPress: () => guardar(ficha) }],
     );
   };
+  const registrarNoUbicado = () => confirmarEnvio({ ...s, resultado: "NO_UBICADO" });
 
-  const guardar = async () => {
+  const guardar = async (ficha: FichaState = s) => {
+    const s = ficha; // todo lo que sigue lee del estado con el que se confirmó el envío
     try {
       setError("");
       setSaving(true);
@@ -266,15 +269,13 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
           rejectedReason = result.rejected.find((r) => r.id === queueId)?.reason ?? null;
         }
       } catch {}
-      onSent();
-      const alerta = ubicacionObservada ? `\n\nQuedó con alerta de ubicación: ${ubicacionObservada}.` : "";
+      const alerta = ubicacionObservada ? ` Quedó con alerta de ubicación: ${ubicacionObservada}.` : "";
       if (rejectedReason) {
-        Alert.alert("Visita rechazada por el servidor", `${rejectedReason}\n\nNo se registró. El expediente sigue en tu muestra: corrige lo indicado y vuelve a registrarlo. (El detalle queda en Perfil.)`);
+        onSent({ tono: "rechazada", titulo: "Visita rechazada por el servidor", texto: `${rejectedReason} No se registró: el expediente sigue en tu muestra, corrige lo indicado y vuelve a registrarlo. El detalle queda en Perfil.` });
+      } else if (synced) {
+        onSent({ tono: "ok", titulo: "Tus respuestas han sido enviadas", texto: `Puedes continuar con el resto de tus muestras.${alerta}` });
       } else {
-        Alert.alert(
-          synced ? "Visita registrada" : "Visita guardada localmente",
-          (synced ? "La ficha fue enviada correctamente." : "Aún no llegó al servidor: se enviará automáticamente cuando haya conexión. Hasta entonces el expediente NO cambia de estado.") + alerta,
-        );
+        onSent({ tono: "guardada", titulo: "Visita guardada en tu celular", texto: `Aún no llegó al servidor: se enviará sola cuando haya conexión. Hasta entonces el expediente NO cambia de estado.${alerta}` });
       }
     } catch (e: any) {
       if (mounted.current) setError(e.message || "No se pudo guardar la visita.");
@@ -285,77 +286,66 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
 
   const ultimo = idx === pasos.length - 1;
   const actual = pasos[idx];
+  const siguienteCorto = !ultimo ? pasos[idx + 1].corto : "";
+  const textoSiguiente = `Continuar ${/^(Cuestionario|Negocio)$/.test(siguienteCorto) ? "al" : "a"} ${siguienteCorto}`;
 
   return (
     <SafeAreaView edges={["bottom"]} style={st.safe}>
       <StatusBar style="dark" />
-      <LinearGradient colors={[...G.hero]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[st.top, { paddingTop: Math.max(insets.top, 10) }]}>
+      <View style={[st.top, { paddingTop: Math.max(insets.top, 10) + 14 }]}>
         <View style={st.head}>
-          <Pressable onPress={salir} style={st.iconBtn} accessibilityLabel="Cerrar ficha"><MaterialCommunityIcons name="close" size={20} color={C.ink} /></Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={st.tipoText}>{tema.nombre.toUpperCase()}</Text>
-            <Text style={st.title} numberOfLines={1}>{expediente.nombres_cliente}</Text>
-            <Text style={st.sub} numberOfLines={1}>{expediente.codigo_expediente}</Text>
-          </View>
-          <Pressable onPress={() => setVerBase("cliente")} style={st.baseBtn} accessibilityLabel="Ver datos de la base">
-            <MaterialCommunityIcons name="database-eye-outline" size={17} color={C.ink} />
-            <Text style={st.baseBtnText}>Datos base</Text>
-          </Pressable>
+          <MaterialCommunityIcons name="account-circle" size={26} color="#000" />
+          <Text style={st.title} accessibilityRole="header" numberOfLines={1}>Detalles del caso</Text>
+          <View style={st.tipo}><Text style={st.tipoText}>{plantilla === "MYPE_V1" ? "MYPE" : "Consumo"}</Text></View>
+          <Pressable onPress={salir} style={st.cerrar} accessibilityLabel="Cerrar ficha" hitSlop={8}><MaterialCommunityIcons name="close" size={22} color={N.tinta} /></Pressable>
         </View>
-
-        <View style={st.progressWrap}>
-          <View style={st.progressTrack}>
-            <LinearGradient colors={[...G.brand]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[st.progressFill, { width: `${((idx + 1) / pasos.length) * 100}%` }]} />
-          </View>
-          <Text style={st.progressText}>Paso {idx + 1} de {pasos.length}</Text>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.stepperScroll} contentContainerStyle={st.stepper}>
-          {pasos.map((p, i) => {
-            const actualPaso = i === idx;
-            const visto = visitados.has(p.id);
-            const completo = visto && pasoCompleto(p.id, s, plantilla);
-            const pendiente = visto && !completo && !actualPaso && p.id !== "verificacion" && p.id !== "otros";
-            return (
-              <Pressable key={p.id} onPress={() => irA(i)} style={[st.stepChip, actualPaso && st.stepChipOn]}>
-                {completo && !actualPaso ? <MaterialCommunityIcons name="check" size={13} color={C.success} /> : pendiente ? <MaterialCommunityIcons name="alert-circle-outline" size={13} color={C.warning} /> : <Text style={[st.stepNum, actualPaso && st.stepTextOn]}>{i + 1}</Text>}
-                <Text style={[st.stepText, actualPaso && st.stepTextOn]}>{p.corto}</Text>
+        <Text style={st.sub}>Información para preparar tu visita</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.pasosFila}>
+          {pasos.map((p, i) => (
+            <React.Fragment key={p.id}>
+              <Pressable onPress={() => irA(i)} accessibilityRole="button" accessibilityState={{ selected: i === idx }} hitSlop={6}>
+                <Text style={[st.paso, i === idx && st.pasoOn]}>{i + 1} {p.corto}</Text>
               </Pressable>
-            );
-          })}
+              {i < pasos.length - 1 ? <MaterialCommunityIcons name="arrow-right" size={13} color={N.apagado} /> : null}
+            </React.Fragment>
+          ))}
         </ScrollView>
-      </LinearGradient>
+      </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.body}>
-          <Text style={st.stepTitle}>{actual.titulo}</Text>
-          {restaurado ? <Callout tipo="info">Recuperamos el avance que dejaste en esta ficha.</Callout> : null}
+          <View style={st.hoja}>
+            <Text style={st.stepTitle} accessibilityRole="header">{actual.titulo}</Text>
+            {restaurado ? <Callout tipo="info">Recuperamos el avance que dejaste en esta ficha.</Callout> : null}
 
-          {actual.id === "verificacion" ? (
-            <PasoVerificacion expediente={expediente} plantilla={plantilla} punto={punto} puntos={puntos} onElegir={(p) => set({ destino: p.tipo, indiceNegocio: p.indice })} distanciaM={distanciaM} geo={geo} onVerBase={() => setVerBase("cliente")} onNoUbicado={() => { set({ resultado: "NO_UBICADO" }); irAPaso("cierre"); }} ficha={s} set={set} />
-          ) : null}
-          {actual.id === "negocio" ? <PasoNegocio s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("negocio")} /> : null}
-          {actual.id === "evaluacion" ? <PasoEvaluacion s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("evaluacion")} /> : null}
-          {actual.id === "cuestionario" ? <PasoCuestionario s={s} set={set} plantilla={plantilla} /> : null}
-          {actual.id === "otros" ? <PasoOtros s={s} set={set} plantilla={plantilla} /> : null}
-          {actual.id === "cierre" ? <PasoCierre s={s} set={set} plantilla={plantilla} distanciaM={distanciaM} geo={geo} irA={irAPaso} /> : null}
-          {actual.id === "evidencias" ? <PasoEvidencias s={s} set={set} onFoto={tomarFoto} signatureKey={signatureKey} /> : null}
+            {actual.id === "verificacion" ? (
+              <PasoVerificacion expediente={expediente} plantilla={plantilla} punto={punto} puntos={puntos} onElegir={(p) => set({ destino: p.tipo, indiceNegocio: p.indice })} distanciaM={distanciaM} geo={geo} onVerBase={() => setVerBase("cliente")} onNoUbicado={registrarNoUbicado} onFoto={tomarFoto} ficha={s} set={set} />
+            ) : null}
+            {actual.id === "negocio" ? <PasoNegocio s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("negocio")} /> : null}
+            {actual.id === "evaluacion" ? <PasoEvaluacion s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("evaluacion")} /> : null}
+            {actual.id === "cuestionario" ? <PasoCuestionario s={s} set={set} plantilla={plantilla} /> : null}
+            {actual.id === "otros" ? <PasoOtros s={s} set={set} plantilla={plantilla} /> : null}
+            {actual.id === "cierre" ? <PasoCierre s={s} set={set} plantilla={plantilla} distanciaM={distanciaM} geo={geo} irA={irAPaso} /> : null}
+            {actual.id === "evidencias" ? <PasoEvidencias s={s} set={set} onFoto={tomarFoto} signatureKey={signatureKey} /> : null}
 
-          {error ? <Callout tipo="error">{error}</Callout> : null}
+            {error ? <Callout tipo="error">{error}</Callout> : null}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
       <View style={st.footer}>
         {idx > 0 ? (
-          <Pressable onPress={() => irA(idx - 1)} style={st.backBtn}><MaterialCommunityIcons name="chevron-left" size={20} color={C.primary} /><Text style={st.backText}>Atrás</Text></Pressable>
-        ) : <View style={{ width: 8 }} />}
+          <Pressable onPress={() => irA(idx - 1)} style={st.backBtn} accessibilityRole="button"><MaterialCommunityIcons name="chevron-left" size={20} color={N.tinta} /><Text style={st.backText}>Atrás</Text></Pressable>
+        ) : null}
         <Pressable
-          onPress={ultimo ? confirmarEnvio : () => irA(idx + 1)}
+          onPress={ultimo ? () => confirmarEnvio() : () => irA(idx + 1)}
           disabled={saving}
-          style={[st.nextBtn, { backgroundColor: ultimo ? C.success : C.primary }, saving && { opacity: 0.6 }]}
+          accessibilityRole="button"
+          style={[st.nextBtn, { backgroundColor: ultimo ? N.verde : N.marca }, saving && { opacity: 0.6 }]}
         >
-          <Text style={st.nextText}>{saving ? "Guardando…" : ultimo ? "Revisar y enviar" : `Continuar · ${pasos[idx + 1].corto}`}</Text>
-          <MaterialCommunityIcons name={ultimo ? "send-check-outline" : "chevron-right"} size={20} color="#fff" />
+          {!ultimo ? <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" /> : null}
+          <Text style={st.nextText}>{saving ? "Guardando…" : ultimo ? "Revisar y enviar" : textoSiguiente}</Text>
+          {ultimo ? <MaterialCommunityIcons name="send-outline" size={20} color="#fff" /> : null}
         </Pressable>
       </View>
 
@@ -376,33 +366,25 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
 }
 
 const st = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
-  top: { paddingBottom: 14, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, borderBottomWidth: 1, borderColor: C.border },
-  head: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
-  iconBtn: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: C.soft },
-  tipoText: { fontSize: 10, fontWeight: "700", letterSpacing: 1, color: C.magenta },
-  title: { fontFamily: F.display, fontSize: 25, lineHeight: 28, fontWeight: "normal", color: C.ink, marginTop: 1, letterSpacing: -0.4 },
-  sub: { fontSize: 11.5, color: C.muted, fontWeight: "500" },
-  baseBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 11, height: 36, borderRadius: 12, backgroundColor: C.soft },
-  baseBtnText: { fontSize: 11.5, fontWeight: "600", color: C.ink },
-  progressWrap: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
-  progressTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: C.soft, overflow: "hidden" },
-  progressFill: { height: 4, borderRadius: 2 },
-  progressText: { fontSize: 11, fontWeight: "600", color: C.muted },
-  stepperScroll: { flexGrow: 0 },
-  stepper: { paddingHorizontal: 14, gap: 6 },
-  stepChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 32, borderRadius: 16, backgroundColor: C.soft },
-  stepChipOn: { backgroundColor: C.primary },
-  stepNum: { fontSize: 11.5, fontWeight: "700", color: C.muted },
-  stepText: { fontSize: 12, fontWeight: "600", color: C.text2 },
-  stepTextOn: { color: "#fff" },
-  body: { padding: 14, gap: 12, paddingBottom: 24 },
-  stepTitle: { fontFamily: F.display, fontSize: 32, lineHeight: 36, fontWeight: "normal", color: C.ink, letterSpacing: -0.3 },
-  footer: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: "#fff" },
-  backBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 12 },
-  backText: { fontSize: 14, fontWeight: "600", color: C.text2 },
-  nextBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 52, borderRadius: 14 },
-  nextText: { fontSize: 14.5, fontWeight: "600", color: "#fff" },
+  safe: { flex: 1, backgroundColor: N.fondo },
+  top: { paddingHorizontal: 20, paddingBottom: 12, gap: 6 },
+  head: { flexDirection: "row", alignItems: "center", gap: 8 },
+  title: { flex: 1, fontFamily: FI.bold, fontSize: 24, lineHeight: 30, color: "#000" },
+  tipo: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: N.suave },
+  tipoText: { fontFamily: FI.semi, fontSize: 12, color: N.marca },
+  cerrar: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#fff", borderWidth: 1, borderColor: N.borde },
+  sub: { fontFamily: FI.reg, fontSize: 14, color: N.apagado },
+  pasosFila: { alignItems: "center", gap: 6, paddingTop: 4, paddingRight: 8 },
+  paso: { fontFamily: FI.reg, fontSize: 12.5, color: N.marca },
+  pasoOn: { fontFamily: FI.med, textDecorationLine: "underline" },
+  body: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24 },
+  hoja: { backgroundColor: "#fff", borderRadius: 20, borderWidth: 1, borderColor: N.borde, padding: 16, gap: 14 },
+  stepTitle: { fontFamily: FI.semi, fontSize: 20, lineHeight: 26, color: N.tinta },
+  footer: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 1, borderTopColor: N.borde, backgroundColor: N.fondo },
+  backBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingRight: 6 },
+  backText: { fontFamily: FI.semi, fontSize: 16, color: N.tinta },
+  nextBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, minHeight: 52, borderRadius: 12 },
+  nextText: { fontFamily: FI.semi, fontSize: 16, color: "#fff" },
   cameraControls: { position: "absolute", bottom: 40, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 30 },
   cameraCancel: { width: 50, height: 50, borderRadius: 25, backgroundColor: "#00000080", alignItems: "center", justifyContent: "center" },
   cameraShutter: { width: 74, height: 74, borderRadius: 37, backgroundColor: "#ffffff40", alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "#fff" },
