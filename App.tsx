@@ -16,8 +16,10 @@ import {
 import NetInfo from "@react-native-community/netinfo";
 import { AuthProvider, useAuth } from "./src/AuthContext";
 import { useFonts, InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic } from "@expo-google-fonts/instrument-serif";
+import { Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from "@expo-google-fonts/inter";
 import { LinearGradient } from "expo-linear-gradient";
-import { C, G } from "./src/theme";
+import { C, FI, G, N } from "./src/theme";
+import BienvenidaScreen from "./src/screens/BienvenidaScreen";
 import LoginScreen from "./src/screens/LoginScreen";
 import TerminosScreen from "./src/screens/TerminosScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
@@ -53,8 +55,14 @@ const tabs: any[] = [
 ];
 function Shell() {
   const { token, user, loading, api, offlineSession } = useAuth();
-  const [fontsLoaded, fontsError] = useFonts({ InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic });
+  const [fontsLoaded, fontsError] = useFonts({ InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
   const [tab, setTab] = useState<Tab>("principal");
+  // Al abrir la app sin sesión se ve primero la Bienvenida; «Entrar» lleva al inicio de sesión. Al cerrar sesión vuelve a empezar por ahí.
+  const [entrar, setEntrar] = useState(false);
+  // Caso que «Revisar caso» (pantalla Hoy) pide abrir al llegar a Mi muestra.
+  const [abrir, setAbrir] = useState<any>(null);
+  const irA = useCallback((siguiente: Tab, caso?: any) => { setAbrir(caso ?? null); setTab(siguiente); }, []);
+  useEffect(() => { if (token) setEntrar(false); }, [token]);
   const [online, setOnline] = useState(true);
   const [revision, setRevision] = useState(0);
   const [renderedRevision, setRenderedRevision] = useState(0);
@@ -106,7 +114,7 @@ function Shell() {
         <Text style={s.loadingText}>Preparando la app de auditoría</Text>
       </View>
     );
-  if (!token) return <LoginScreen />;
+  if (!token) return entrar ? <LoginScreen /> : <BienvenidaScreen onEntrar={() => setEntrar(true)} />;
   if (terminos === "cargando")
     return (
       <View style={s.loading}>
@@ -160,7 +168,8 @@ function Shell() {
           refreshRevision={renderedRevision}
           currentLocation={location}
           onDetailVisibilityChange={setDetailOpen}
-          onNavigate={(next: Tab) => setTab(next)}
+          abrirAsignacion={abrir}
+          onNavigate={(next: Tab, caso?: any) => irA(next, caso)}
         />
       </View>
       <View style={[s.nav, { paddingBottom: Math.max(insets.bottom, 6) }]}>
@@ -169,13 +178,13 @@ function Shell() {
           return (
             <Pressable
               key={item.key}
-              onPress={() => setTab(item.key)}
+              onPress={() => irA(item.key)}
               accessibilityRole="button"
               accessibilityState={{ selected }}
               style={({ pressed }) => [s.navItem, pressed && s.navItemPressed]}
             >
               <View style={[s.navPill, selected && s.navPillOn]}>
-                <MaterialCommunityIcons name={selected ? item.active : item.icon} size={23} color={selected ? C.primary : C.muted} />
+                <MaterialCommunityIcons name={selected ? item.active : item.icon} size={24} color={selected ? N.marca : N.apagado} />
               </View>
               <Text style={[s.navLabel, selected && s.navLabelActive]}>{item.label}</Text>
             </Pressable>
@@ -222,8 +231,8 @@ const s = StyleSheet.create({
   nav: { backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border, flexDirection: "row", paddingTop: 6, shadowColor: "#0E1332", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -3 }, elevation: 8 },
   navItem: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 2, paddingTop: 2, paddingBottom: 4 },
   navItemPressed: { opacity: 0.6 },
-  navPill: { width: 54, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
-  navPillOn: { backgroundColor: C.blue50 },
-  navLabel: { fontSize: 11, lineHeight: 14, color: C.muted, fontWeight: "600" },
-  navLabelActive: { color: C.primary, fontWeight: "700" },
+  navPill: { width: 58, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  navPillOn: { backgroundColor: N.suave },
+  navLabel: { fontFamily: FI.med, fontSize: 12, lineHeight: 15, color: N.apagado },
+  navLabelActive: { fontFamily: FI.bold, color: N.marca },
 });

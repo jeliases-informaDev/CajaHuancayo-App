@@ -23,13 +23,14 @@ const CACHE_KEY_AUTO = "autoasignacion_v1";
 // Valores por defecto del servidor; se reemplazan por los reales (GET /api/visitas/config).
 const GEO_DEFAULT = { radio: 100, precision: 100 };
 
-export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilityChange, currentLocation }: { refreshRevision?: number; onDetailVisibilityChange?: (open: boolean) => void; currentLocation?: { latitude: number; longitude: number } | null }) {
+export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilityChange, currentLocation, abrirAsignacion = null }: { refreshRevision?: number; onDetailVisibilityChange?: (open: boolean) => void; currentLocation?: { latitude: number; longitude: number } | null; abrirAsignacion?: any }) {
   const { api } = useAuth();
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [selected, setSelected] = useState<any>(null);
+  // Si llega desde «Revisar caso» (pantalla Hoy), la ficha de ese caso se abre de entrada.
+  const [selected, setSelected] = useState<any>(abrirAsignacion);
 
   // "Disponibles": expedientes pendientes de cualquier distrito que nadie tomó todavía, del más antiguo al más nuevo (no dependen de dónde estés) —
   // el auditor se los puede auto-asignar en vez de esperar a que el supervisor lo haga.

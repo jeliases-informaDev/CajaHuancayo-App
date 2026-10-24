@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../AuthContext";
-import { Avatar, Badge, Card, Empty, Loading, Screen } from "../ui";
-import { C, F, G, shadow } from "../theme";
+import { Empty, Loading } from "../ui";
+import { conMayusculas, FI, N, nombreDePersona } from "../theme";
 import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
 import { cargarMuestra, type ResumenMuestra } from "../muestra";
-import { nombreDeEmpresa, useEmpresa } from "../empresa";
 import { comoLlegarA } from "../ficha/destino";
 import { inicioDeJornada, iniciarJornada, jornadaDisponible, jornadaEnCurso, reintentarFinPendiente, terminarJornada, zonaDeLaJornada } from "../jornada";
 import type { ZonaJornada } from "../types/jornada";
@@ -23,10 +24,10 @@ function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number)
 const formatoDistancia = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
 export default function DashboardScreen({ refreshRevision = 0, onNavigate, currentLocation }: {
-  refreshRevision?: number; onNavigate?: (tab: string) => void; currentLocation?: { latitude: number; longitude: number } | null;
+  refreshRevision?: number; onNavigate?: (tab: string, abrir?: any) => void; currentLocation?: { latitude: number; longitude: number } | null;
 }) {
   const { api, user } = useAuth();
-  const empresa = useEmpresa(api);
+  const insets = useSafeAreaInsets();
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
   const [resumen, setResumen] = useState<ResumenMuestra | null>(null); // conteos de TODA la muestra, vengan o no cargados todos los casos
   const ultimaGuardada = useRef<any[] | null>(null);
@@ -121,203 +122,177 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
   const porEnviar = pendientesSync + rechazadas;
   const fecha = new Date().toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long" }).replace(/^./, (c) => c.toUpperCase());
 
-  const acciones = [
-    { key: "muestra", label: "Mi muestra", icon: "folder-account-outline" },
-    { key: "mapa", label: "Mapa", icon: "map-marker-radius-outline" },
-    { key: "mas", label: "Sincronización", icon: "cloud-sync-outline", alerta: porEnviar > 0 },
-  ];
-
   const comoLlegar = () => { const e = siguiente?.a.expediente; if (e) comoLlegarA(e); };
+  const prioridad = String(siguiente?.a.prioridad || "").toUpperCase();
+  const chipPrioridad = prioridad === "ALTA" ? { t: "Prioridad alta", bg: N.rojoFondo, fg: N.rojoTexto } : prioridad === "MEDIA" ? { t: "Prioridad media", bg: N.ambarFondo, fg: N.ambar } : prioridad === "BAJA" ? { t: "Prioridad baja", bg: N.suave, fg: N.apagado } : null;
+  const direccion = [conMayusculas(siguiente?.a.expediente?.direccion_domicilio), conMayusculas(siguiente?.a.expediente?.distrito)].filter(Boolean).join(", ");
+  const textoDistancia = siguiente?.d != null ? `${formatoDistancia(siguiente.d)} referenciales.${siguiente.d >= 5000 ? " Valida la ubicación antes de desplazarte." : ""}` : "";
+  const circulos = [
+    { n: stats.total, sub: "Por visitar", color: N.tinta },
+    { n: stats.alta, sub: "Prioritarias", color: stats.alta ? N.rojo : N.tinta },
+    { n: pendientesSync, sub: "Listas para enviar", color: pendientesSync ? N.verde : N.tinta },
+  ];
+  const desde = jornada.desde ? new Date(jornada.desde).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }) : "";
 
   return (
-    <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true, true)} colors={[C.primary]} />}>
-      <View style={s.greetRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={s.date}>{fecha}</Text>
-          <Text style={s.greet}>Hola, <Text style={s.greetName}>{nombre}</Text></Text>
-          {nombreDeEmpresa(empresa) ? <Text style={s.empresa}>{nombreDeEmpresa(empresa)} · Auditoría de Visitas</Text> : null}
-        </View>
-        <View style={s.syncPill}>
-          <View style={[s.dot, (refreshing || pendientesSync > 0) && s.dotBusy]} />
-          <Text style={s.syncText}>{refreshing ? "Actualizando" : pendientesSync ? `${pendientesSync} por enviar` : "Al día"}</Text>
-        </View>
-      </View>
-
-      <LinearGradient colors={[...G.hero]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
-        <LinearGradient colors={[...G.glow]} start={{ x: 0, y: 1 }} end={{ x: 0.9, y: 0.1 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
-        <Text style={s.heroEyebrow}>En tu muestra</Text>
-        <View style={s.heroNumRow}>
-          <Text style={s.heroNum}>{stats.total}</Text>
-          <Text style={s.heroUnit}>{stats.total === 1 ? "caso por visitar" : "casos por visitar"}</Text>
-        </View>
-        <View style={s.heroBar}>
-          {stats.otros > 0 ? <View style={[s.heroBarSeg, { flex: stats.otros, backgroundColor: C.magenta }]} /> : null}
-          {stats.consumo > 0 ? <View style={[s.heroBarSeg, { flex: stats.consumo, backgroundColor: C.primary }]} /> : null}
-          {!stats.total ? <View style={[s.heroBarSeg, { flex: 1, backgroundColor: C.soft }]} /> : null}
-        </View>
-        <View style={s.heroLegend}>
-          <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.magenta }]} /><Text style={s.legendText}>MYPE <Text style={s.legendB}>{stats.otros}</Text></Text></View>
-          <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.primary }]} /><Text style={s.legendText}>Consumo <Text style={s.legendB}>{stats.consumo}</Text></Text></View>
-        </View>
-        <View style={s.heroStats}>
-          <View style={s.heroStat}><Text style={[s.heroStatNum, stats.alta ? { color: C.danger } : null]}>{stats.alta}</Text><Text style={s.heroStatLabel}>Prioritarios</Text></View>
-          <View style={s.heroStatSep} />
-          <View style={s.heroStat}><Text style={s.heroStatNum}>{porEnviar}</Text><Text style={s.heroStatLabel}>Por enviar</Text></View>
-        </View>
-      </LinearGradient>
-
-      {jornadaDisponible ? (
-        <Card>
-          <View style={s.routeRow}>
-            <View style={[s.routeIcon, jornada.activa ? { backgroundColor: "#E4F7EF" } : { backgroundColor: C.infoBg }]}>
-              <MaterialCommunityIcons name={jornada.activa ? "crosshairs-gps" : "map-marker-radius-outline"} size={24} color={jornada.activa ? C.success : C.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.routeTitle}>{jornada.activa ? "Jornada en curso" : "Jornada de campo"}</Text>
-              <Text style={s.routeSub}>{jornada.activa
-                ? `${jornada.desde ? `Desde las ${new Date(jornada.desde).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}. ` : ""}${jornada.zona ? `Tu zona de hoy: ${jornada.zona}. ` : ""}Tu supervisor ve tu ubicación en tiempo real, también con la pantalla apagada.`
-                : "Inicia la jornada al salir a campo: se guarda tu zona de trabajo y tu supervisor verá tu ubicación en tiempo real, también con la pantalla apagada o usando el mapa. Solo se comparte durante la jornada."}</Text>
-            </View>
+    <View style={s.pantalla}>
+      <StatusBar style="light" />
+      <LinearGradient colors={[N.marca2, "rgba(76,81,185,0)"]} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={[s.cabeceraFondo, { height: insets.top + 250 }]} pointerEvents="none" />
+      <ScrollView
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true, true)} colors={[N.marca]} progressViewOffset={insets.top} />}
+        keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
+        contentContainerStyle={[s.contenido, { paddingTop: insets.top + 20 }]}
+      >
+        <View style={s.saludo}>
+          <View style={s.fechaFila}>
+            <MaterialCommunityIcons name="calendar-blank-outline" size={16} color="rgba(255,255,255,0.85)" />
+            <Text style={s.fecha}>{fecha}</Text>
           </View>
-          {jornadaError ? <Text style={s.jornadaError}>{jornadaError}</Text> : null}
-          <Pressable disabled={jornadaOcupada} onPress={alternarJornada} accessibilityRole="button" style={({ pressed }) => [s.jornadaBtn, jornada.activa ? s.jornadaBtnOff : s.jornadaBtnOn, (pressed || jornadaOcupada) && { opacity: 0.75 }]}>
-            <MaterialCommunityIcons name={jornada.activa ? "stop-circle-outline" : "play-circle-outline"} size={19} color={jornada.activa ? C.danger : "#fff"} />
-            <Text style={[s.jornadaBtnText, jornada.activa && { color: C.danger }]}>{jornadaOcupada ? "Un momento…" : jornada.activa ? "Terminar jornada" : "Iniciar jornada"}</Text>
-          </Pressable>
-        </Card>
-      ) : null}
+          <Text style={s.hola} accessibilityRole="header">Hola, <Text style={s.nombre}>{nombre}</Text> 👋</Text>
+        </View>
 
-      {error && !asignaciones.length ? (
-        <Empty title="No pudimos cargar tu muestra" text={error} />
-      ) : (
-        <>
-          {siguiente ? (
-            <Card style={s.next}>
-              <View style={s.nextHead}>
-                <Text style={s.nextEyebrow}>Siguiente caso</Text>
-                <View style={[s.typeChip, { backgroundColor: esMype ? C.magentaBg : C.infoBg }]}>
-                  <MaterialCommunityIcons name={esMype ? "store-outline" : "account-cash-outline"} size={13} color={esMype ? C.magenta : C.primary} />
-                  <Text style={[s.typeText, { color: esMype ? C.magenta : C.primary }]}>{esMype ? "MYPE" : "CONSUMO"}</Text>
-                </View>
+        {jornadaDisponible ? (
+          <View style={s.tarjeta}>
+            <View style={s.cabezaTarjeta}>
+              <Text style={s.tituloTarjeta}>{jornada.activa ? "Jornada en curso" : "Tu jornada de campo"}</Text>
+              <View style={[s.estado, jornada.activa && s.estadoOn]}>
+                {jornada.activa ? <View style={s.estadoPunto} /> : null}
+                <Text style={[s.estadoTexto, jornada.activa && { color: "#0C8559" }]}>{jornada.activa ? "En curso" : "Sin iniciar"}</Text>
               </View>
-              <View style={s.nextBody}>
-                <Avatar name={siguiente.a.expediente?.nombres_cliente} size={52} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.nextName} numberOfLines={2}>{siguiente.a.expediente?.nombres_cliente}</Text>
-                  <View style={s.nextMeta}>
-                    <MaterialCommunityIcons name="map-marker-outline" size={14} color={C.muted} />
-                    <Text style={s.nextAddr} numberOfLines={2}>{siguiente.a.expediente?.distrito || "Sin distrito"} · {siguiente.a.expediente?.direccion_domicilio || "Sin dirección"}</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={s.nextChips}>
-                {siguiente.d != null ? <View style={s.distChip}><MaterialCommunityIcons name="navigation-variant-outline" size={14} color={C.primary} /><Text style={s.distText}>a {formatoDistancia(siguiente.d)}</Text></View> : null}
-                {siguiente.a.prioridad === "ALTA" ? <Badge status="NO_ENCONTRADO" label="Prioridad alta" /> : null}
-              </View>
-              <View style={s.nextActions}>
-                <Pressable style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.8 }]} onPress={comoLlegar} accessibilityRole="button">
-                  <LinearGradient colors={[...G.action]} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={s.primaryBtnIn}>
-                    <MaterialCommunityIcons name="directions" size={19} color="#fff" />
-                    <Text style={s.primaryText}>Cómo llegar</Text>
-                  </LinearGradient>
-                </Pressable>
-                <Pressable style={({ pressed }) => [s.ghostBtn, pressed && { opacity: 0.7 }]} onPress={() => onNavigate?.("muestra")} accessibilityRole="button">
-                  <Text style={s.ghostText}>Ver muestra</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={16} color={C.ink} />
-                </Pressable>
-              </View>
-            </Card>
-          ) : null}
+            </View>
+            <Text style={s.cuerpo}>{jornada.activa
+              ? `${desde ? `Desde las ${desde}` : "Jornada iniciada"}${jornada.zona ? ` · Tu zona de hoy: ${jornada.zona}` : ""}`
+              : "Inicia tu jornada cuando salgas a campo."}</Text>
+            <View style={s.nota}>
+              <MaterialCommunityIcons name="map-marker-outline" size={20} color={N.marca} style={{ marginTop: 1 }} />
+              <Text style={s.notaTexto}>Tu supervisor verá tu ubicación solo durante la jornada, incluso con la pantalla apagada.</Text>
+            </View>
+            {jornadaError ? <Text style={s.jornadaError}>{jornadaError}</Text> : null}
+            <Pressable disabled={jornadaOcupada} onPress={alternarJornada} accessibilityRole="button" style={({ pressed }) => [s.jornadaBtn, jornada.activa ? s.jornadaBtnOff : s.jornadaBtnOn, (pressed || jornadaOcupada) && { opacity: 0.75 }]}>
+              <MaterialCommunityIcons name={jornada.activa ? "stop-circle-outline" : "play-outline"} size={21} color={jornada.activa ? "#C0243E" : "#fff"} />
+              <Text style={[s.jornadaBtnTexto, jornada.activa && { color: "#C0243E" }]}>{jornadaOcupada ? "Un momento…" : jornada.activa ? "Terminar jornada" : "Iniciar jornada"}</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
-          <View style={s.actions}>
-            {acciones.map((a) => (
-              <Pressable key={a.key} style={({ pressed }) => [s.action, pressed && { opacity: 0.75 }]} onPress={() => onNavigate?.(a.key)} accessibilityRole="button">
-                <View style={s.actionIcon}>
-                  <MaterialCommunityIcons name={a.icon as any} size={22} color={C.primary} />
-                  {a.alerta ? <View style={s.actionBadge} /> : null}
-                </View>
-                <Text style={s.actionLabel}>{a.label}</Text>
-              </Pressable>
+        <View style={s.bloque}>
+          <Text style={s.tituloBloque} accessibilityRole="header">Actividad de hoy</Text>
+          <View style={s.circulos}>
+            {circulos.map((c) => (
+              <View key={c.sub} style={s.circuloCol} accessible accessibilityLabel={`${c.n} muestras. ${c.sub}`}>
+                <View style={s.circulo}><Text style={[s.circuloNum, { color: c.color }]}>{c.n}</Text></View>
+                <Text style={s.circuloEtiqueta}>{c.n === 1 ? "muestra" : "muestras"}</Text>
+                <Text style={s.circuloSub}>{c.sub}</Text>
+              </View>
             ))}
           </View>
+        </View>
 
-          {porEnviar ? (
-            <Card>
-              <View style={s.routeRow}>
-                <View style={[s.routeIcon, s.routeIconWarn, rechazadas ? { backgroundColor: C.dangerBg } : null]}>
-                  <MaterialCommunityIcons name={rechazadas ? "alert-octagon-outline" : "cloud-alert-outline"} size={24} color={rechazadas ? C.danger : C.warning} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.routeTitle}>{rechazadas ? `${rechazadas} visita(s) rechazada(s)` : `${pendientesSync} visita(s) por sincronizar`}</Text>
-                  <Text style={s.routeSub}>{rechazadas ? "No se enviaron. Abre Perfil para ver el motivo; el expediente sigue en tu muestra." : "Se enviarán automáticamente al recuperar conexión."}</Text>
-                </View>
+        {error && !asignaciones.length ? (
+          <Empty title="No pudimos cargar tu muestra" text={error} />
+        ) : siguiente ? (
+          <View style={s.bloque}>
+            <Text style={s.tituloBloque} accessibilityRole="header">Primera visita sugerida</Text>
+            <View style={s.tarjeta}>
+              <View style={s.chips}>
+                {chipPrioridad ? <View style={[s.chip, { backgroundColor: chipPrioridad.bg }]}><Text style={[s.chipTexto, { color: chipPrioridad.fg }]}>{chipPrioridad.t}</Text></View> : <View />}
+                <View style={[s.chip, { backgroundColor: N.suave }]}><Text style={[s.chipTexto, { color: N.marca }]}>{esMype ? "MYPE" : "Consumo"}</Text></View>
               </View>
-            </Card>
-          ) : null}
-        </>
-      )}
-    </Screen>
+              <Text style={s.caso} numberOfLines={2}>{nombreDePersona(siguiente.a.expediente?.nombres_cliente) || "Cliente sin nombre"}</Text>
+              <Text style={s.casoCodigo} numberOfLines={1}>{[siguiente.a.expediente?.codigo_expediente, conMayusculas(siguiente.a.expediente?.distrito)].filter(Boolean).join(" · ")}</Text>
+              <View style={s.direccion}>
+                <MaterialCommunityIcons name="map-marker-outline" size={20} color={N.marca} style={{ marginTop: 1 }} />
+                <Text style={s.direccionTexto} numberOfLines={2}>{direccion || "Sin dirección"}</Text>
+              </View>
+              {textoDistancia ? (
+                <>
+                  <View style={s.linea} />
+                  <Text style={s.distancia}>{textoDistancia}</Text>
+                </>
+              ) : null}
+              <View style={s.acciones}>
+                <Pressable style={({ pressed }) => [s.revisar, pressed && { opacity: 0.8 }]} onPress={() => onNavigate?.("muestra", siguiente.a)} accessibilityRole="button">
+                  <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" />
+                  <Text style={s.revisarTexto}>Revisar caso</Text>
+                </Pressable>
+                <Pressable style={({ pressed }) => [s.llegar, pressed && { opacity: 0.7 }]} onPress={comoLlegar} accessibilityRole="button" accessibilityLabel="Cómo llegar">
+                  <MaterialCommunityIcons name="navigation-variant-outline" size={22} color={N.marca} />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={s.bloque}>
+            <Text style={s.tituloBloque} accessibilityRole="header">Primera visita sugerida</Text>
+            <View style={s.tarjeta}>
+              <Text style={s.cuerpo}>Todavía no tienes casos en tu muestra. Revisa «Disponibles» en Mi muestra para tomar uno.</Text>
+              <Pressable style={({ pressed }) => [s.revisar, pressed && { opacity: 0.8 }]} onPress={() => onNavigate?.("muestra")} accessibilityRole="button">
+                <Text style={s.revisarTexto}>Ir a Mi muestra</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {porEnviar ? (
+          <View style={[s.tarjeta, s.aviso, rechazadas ? { backgroundColor: "#FDE7EB", borderColor: "#F5C6CC" } : null]}>
+            <MaterialCommunityIcons name={rechazadas ? "alert-octagon-outline" : "cloud-alert-outline"} size={26} color={rechazadas ? "#C0243E" : N.ambar} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.avisoTitulo}>{rechazadas ? `${rechazadas} visita(s) rechazada(s)` : `${pendientesSync} visita(s) por sincronizar`}</Text>
+              <Text style={s.avisoTexto}>{rechazadas ? "No se enviaron. Abre Perfil para ver el motivo; el expediente sigue en tu muestra." : "Se enviarán automáticamente al recuperar conexión."}</Text>
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  greetRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  date: { fontSize: 12.5, fontWeight: "500", color: C.muted },
-  empresa: { fontSize: 12, fontWeight: "700", color: C.muted, marginTop: 2, letterSpacing: 0.2 },
-  greet: { fontFamily: F.display, fontSize: 38, lineHeight: 42, fontWeight: "normal", color: C.ink, letterSpacing: -0.9 },
-  greetName: { fontFamily: F.italic, color: C.primary },
-  syncPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, marginTop: 4, ...shadow.sm },
-  syncText: { fontSize: 11.5, fontWeight: "600", color: C.text2 },
-  dot: { width: 7, height: 7, borderRadius: 7, backgroundColor: C.success },
-  dotBusy: { backgroundColor: "#E89A0C" },
-  hero: { borderRadius: 24, padding: 22, overflow: "hidden", gap: 4, borderWidth: 1, borderColor: C.border, ...shadow.sm },
-  heroEyebrow: { fontSize: 13, fontWeight: "600", color: C.muted },
-  heroNumRow: { flexDirection: "row", alignItems: "baseline", gap: 10, marginTop: 2 },
-  heroNum: { fontFamily: F.display, fontSize: 76, lineHeight: 80, fontWeight: "normal", color: C.ink, letterSpacing: -2 },
-  heroUnit: { fontSize: 14.5, color: C.text2, fontWeight: "500" },
-  heroBar: { flexDirection: "row", height: 8, borderRadius: 5, overflow: "hidden", gap: 3, marginTop: 14 },
-  heroBarSeg: { borderRadius: 4 },
-  heroLegend: { flexDirection: "row", gap: 18, marginTop: 10 },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 7 },
-  legendDot: { width: 8, height: 8, borderRadius: 3 },
-  legendText: { fontSize: 12.5, color: C.text2 },
-  legendB: { color: C.ink, fontWeight: "700" },
-  heroStats: { flexDirection: "row", alignItems: "center", marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: C.border },
-  heroStat: { flex: 1, gap: 1 },
-  heroStatNum: { fontFamily: F.display, fontSize: 34, lineHeight: 36, fontWeight: "normal", color: C.ink, letterSpacing: -0.6 },
-  heroStatLabel: { fontSize: 12, color: C.muted, fontWeight: "500" },
-  heroStatSep: { width: 1, height: 38, backgroundColor: C.border, marginHorizontal: 14 },
-  next: { gap: 14 },
-  nextHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  nextEyebrow: { fontSize: 13, fontWeight: "600", color: C.muted },
-  typeChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8 },
-  typeText: { fontSize: 10.5, fontWeight: "700", letterSpacing: 0.4 },
-  nextBody: { flexDirection: "row", gap: 14, alignItems: "center" },
-  nextName: { fontFamily: F.display, fontSize: 27, lineHeight: 30, fontWeight: "normal", color: C.ink, letterSpacing: -0.4 },
-  nextMeta: { flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 5 },
-  nextAddr: { flex: 1, fontSize: 12.5, lineHeight: 17, color: C.muted },
-  nextChips: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  distChip: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: C.blue50, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  distText: { fontSize: 12.5, fontWeight: "700", color: C.primary },
-  nextActions: { flexDirection: "row", gap: 10 },
-  primaryBtn: { flex: 1.3, borderRadius: 14, ...shadow.sm },
-  primaryBtnIn: { minHeight: 50, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  primaryText: { fontSize: 15, fontWeight: "600", color: "#fff" },
-  ghostBtn: { flex: 1, minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 14, borderWidth: 1, borderColor: C.borderStrong, backgroundColor: C.surface },
-  ghostText: { fontSize: 14, fontWeight: "600", color: C.ink },
-  actions: { flexDirection: "row", gap: 10 },
-  action: { flex: 1, alignItems: "center", gap: 9, paddingVertical: 15, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, ...shadow.sm },
-  actionIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: C.blue50 },
-  actionBadge: { position: "absolute", top: 8, right: 8, width: 10, height: 10, borderRadius: 5, backgroundColor: C.danger, borderWidth: 2, borderColor: "#fff" },
-  actionLabel: { fontSize: 12.5, fontWeight: "600", color: C.text },
-  routeRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  jornadaBtn: { marginTop: 12, height: 46, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  jornadaBtnOn: { backgroundColor: C.primary },
-  jornadaBtnOff: { backgroundColor: C.dangerBg, borderWidth: 1, borderColor: "#F5C6CC" },
-  jornadaBtnText: { color: "#fff", fontSize: 14.5, fontWeight: "700" },
-  jornadaError: { marginTop: 10, color: C.danger, fontSize: 12.5, lineHeight: 17 },
-  routeIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: "#E4F7EF", alignItems: "center", justifyContent: "center" },
-  routeIconWarn: { backgroundColor: C.warningBg },
-  routeTitle: { fontSize: 14.5, fontWeight: "700", color: C.ink },
-  routeSub: { fontSize: 12, lineHeight: 17, color: C.muted, marginTop: 3 },
+  pantalla: { flex: 1, backgroundColor: N.fondo },
+  cabeceraFondo: { position: "absolute", left: 0, right: 0, top: 0 },
+  contenido: { paddingHorizontal: 20, paddingBottom: 32, gap: 24, width: "100%", maxWidth: 560, alignSelf: "center" },
+  saludo: { gap: 4 },
+  fechaFila: { flexDirection: "row", alignItems: "center", gap: 7 },
+  fecha: { fontFamily: FI.med, fontSize: 14, color: "rgba(255,255,255,0.9)" },
+  hola: { fontFamily: FI.reg, fontSize: 32, lineHeight: 40, color: "#fff" },
+  nombre: { fontFamily: FI.bold },
+  tarjeta: { backgroundColor: "#fff", borderWidth: 1, borderColor: N.borde, borderRadius: 20, padding: 20, gap: 14, shadowColor: "#20263D", shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  cabezaTarjeta: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  tituloTarjeta: { flex: 1, fontFamily: FI.semi, fontSize: 18, color: N.tinta },
+  estado: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: N.fondo, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  estadoOn: { backgroundColor: "#E4F7EF" },
+  estadoPunto: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#0C8559" },
+  estadoTexto: { fontFamily: FI.semi, fontSize: 12.5, color: N.apagado },
+  cuerpo: { fontFamily: FI.reg, fontSize: 16, lineHeight: 23, color: N.tinta },
+  nota: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  notaTexto: { flex: 1, fontFamily: FI.reg, fontSize: 13.5, lineHeight: 20, color: N.apagado },
+  jornadaError: { fontFamily: FI.reg, color: "#C0243E", fontSize: 12.5, lineHeight: 17 },
+  jornadaBtn: { minHeight: 52, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  jornadaBtnOn: { backgroundColor: N.verde },
+  jornadaBtnOff: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#F5C6CC" },
+  jornadaBtnTexto: { fontFamily: FI.semi, color: "#fff", fontSize: 16 },
+  bloque: { gap: 16 },
+  tituloBloque: { fontFamily: FI.semi, fontSize: 20, color: N.tinta, textAlign: "center" },
+  circulos: { flexDirection: "row", justifyContent: "center", gap: 14 },
+  circuloCol: { width: 98, alignItems: "center", gap: 2 },
+  circulo: { width: 74, height: 74, borderRadius: 37, backgroundColor: "#fff", borderWidth: 1, borderColor: N.borde, alignItems: "center", justifyContent: "center", marginBottom: 6 },
+  circuloNum: { fontFamily: FI.semi, fontSize: 32, lineHeight: 38 },
+  circuloEtiqueta: { fontFamily: FI.med, fontSize: 14, color: N.tinta },
+  circuloSub: { fontFamily: FI.reg, fontSize: 11, lineHeight: 14, color: N.apagado, textAlign: "center" },
+  chips: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  chipTexto: { fontFamily: FI.semi, fontSize: 12.5 },
+  caso: { fontFamily: FI.bold, fontSize: 24, lineHeight: 30, color: N.tinta },
+  casoCodigo: { fontFamily: FI.reg, fontSize: 14, color: N.apagado, marginTop: -6 },
+  direccion: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
+  direccionTexto: { flex: 1, fontFamily: FI.med, fontSize: 15.5, lineHeight: 22, color: N.tinta },
+  linea: { height: 1, backgroundColor: "#E9EBF4" },
+  distancia: { fontFamily: FI.reg, fontSize: 14, lineHeight: 21, color: N.ambar },
+  acciones: { flexDirection: "row", gap: 10 },
+  revisar: { flex: 1, minHeight: 52, borderRadius: 12, backgroundColor: N.marca, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 },
+  revisarTexto: { fontFamily: FI.semi, fontSize: 16, color: "#fff" },
+  llegar: { width: 52, height: 52, borderRadius: 12, backgroundColor: N.suave, alignItems: "center", justifyContent: "center" },
+  aviso: { flexDirection: "row", alignItems: "center", backgroundColor: N.ambarFondo, borderColor: "#F2DDA6" },
+  avisoTitulo: { fontFamily: FI.semi, fontSize: 14.5, color: N.tinta },
+  avisoTexto: { fontFamily: FI.reg, fontSize: 12.5, lineHeight: 18, color: N.apagado, marginTop: 2 },
 });
