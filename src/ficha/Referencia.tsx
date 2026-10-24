@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { C } from "../theme";
+import { FI, N } from "../theme";
 import { BaseCard, ReadRow } from "./controls";
 import type { Plantilla } from "./types";
 
@@ -244,7 +244,7 @@ export default function Referencia({ visible, onClose, expediente, plantilla, in
             <Text style={s.title}>Datos de la base</Text>
             <Text style={s.sub} numberOfLines={1}>{expediente.nombres_cliente} · {expediente.codigo_expediente}</Text>
           </View>
-          <Pressable onPress={onClose} style={s.close} accessibilityLabel="Cerrar"><MaterialCommunityIcons name="close" size={20} color={C.muted} /></Pressable>
+          <Pressable onPress={onClose} style={s.close} accessibilityLabel="Cerrar"><MaterialCommunityIcons name="close" size={22} color={N.tinta} /></Pressable>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsScroll} contentContainerStyle={s.tabsRow}>
           {tabs.map((t) => (
@@ -266,22 +266,22 @@ export default function Referencia({ visible, onClose, expediente, plantilla, in
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
-  head: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
-  title: { fontSize: 18, fontWeight: "800", color: C.ink },
-  sub: { fontSize: 12, color: C.muted, marginTop: 2 },
-  close: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "#E8EEF8" },
+  safe: { flex: 1, backgroundColor: N.fondo },
+  head: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 20, paddingVertical: 14 },
+  title: { fontFamily: FI.bold, fontSize: 22, lineHeight: 28, color: "#000" },
+  sub: { fontFamily: FI.reg, fontSize: 13.5, color: N.apagado, marginTop: 2 },
+  close: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#fff", borderWidth: 1, borderColor: N.borde },
   tabsScroll: { flexGrow: 0 },
-  tabsRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 10 },
-  tab: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, backgroundColor: "#E8EEF8" },
-  tabOn: { backgroundColor: C.primary },
-  tabText: { fontSize: 12.5, fontWeight: "800", color: C.muted },
-  tabTextOn: { color: "#fff" },
+  tabsRow: { paddingHorizontal: 20, gap: 8, paddingBottom: 10 },
+  tab: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#fff", borderWidth: 1, borderColor: N.borde },
+  tabOn: { backgroundColor: N.marca, borderColor: N.marca },
+  tabText: { fontFamily: FI.med, fontSize: 13.5, color: N.apagado },
+  tabTextOn: { fontFamily: FI.semi, color: "#fff" },
   body: { padding: 16, gap: 12, paddingBottom: 40 },
-  itemBox: { borderTopWidth: 1, borderTopColor: "#DCE6F7", paddingTop: 6, marginTop: 6 },
-  vacio: { fontSize: 12, color: C.muted },
+  itemBox: { borderTopWidth: 1, borderTopColor: N.borde2, paddingTop: 6, marginTop: 6 },
+  vacio: { fontFamily: FI.reg, fontSize: 13, color: N.apagado },
   cmpRow: { flexDirection: "row", alignItems: "center", paddingVertical: 4 },
-  cmpLabel: { flex: 1.3, fontSize: 11.5, color: C.muted, fontWeight: "700" },
-  cmpValue: { flex: 1, fontSize: 12, color: C.text, fontWeight: "800", textAlign: "right" },
-  cmpPrev: { color: C.muted, fontWeight: "600" },
+  cmpLabel: { flex: 1.3, fontFamily: FI.med, fontSize: 12.5, color: N.apagado },
+  cmpValue: { flex: 1, fontFamily: FI.semi, fontSize: 13, color: N.tinta, textAlign: "right" },
+  cmpPrev: { fontFamily: FI.reg, color: N.apagado },
 });

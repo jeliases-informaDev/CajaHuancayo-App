@@ -3,7 +3,7 @@ import { ActivityIndicator, NativeScrollEvent, NativeSyntheticEvent, Pressable, 
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../AuthContext";
-import { C, F, shadow } from "../theme";
+import { FI, N } from "../theme";
 import { Button } from "../ui";
 
 // Términos y condiciones de la empresa: el servidor manda el texto vigente y su versión. Se leen hasta el final, se marca la
@@ -50,7 +50,7 @@ export default function TerminosScreen({ onAceptado }: { onAceptado: (version: s
   return (
     <View style={[s.root, { paddingTop: Math.max(insets.top, 16) + 8, paddingBottom: Math.max(insets.bottom, 16) }]}>
       <View style={s.head}>
-        <View style={s.ic}><MaterialCommunityIcons name="file-document-check-outline" size={24} color={C.primary} /></View>
+        <View style={s.ic}><MaterialCommunityIcons name="file-document-check-outline" size={24} color={N.marca} /></View>
         <View style={{ flex: 1 }}>
           <Text style={s.title}>{terminos?.titulo ?? "Términos y condiciones"}</Text>
           <Text style={s.sub}>{terminos?.subtitulo ?? "Léelos y acéptalos para empezar a usar la app."}</Text>
@@ -58,7 +58,7 @@ export default function TerminosScreen({ onAceptado }: { onAceptado: (version: s
         {terminos ? <Text style={s.version}>Versión {terminos.version}</Text> : null}
       </View>
 
-      <View style={[s.caja, shadow.sm]}>
+      <View style={s.caja}>
         {terminos ? (
           <ScrollView
             style={{ flex: 1 }}
@@ -77,12 +77,12 @@ export default function TerminosScreen({ onAceptado }: { onAceptado: (version: s
           </ScrollView>
         ) : error ? (
           <View style={s.centro}>
-            <MaterialCommunityIcons name="wifi-off" size={28} color={C.muted} />
+            <MaterialCommunityIcons name="wifi-off" size={28} color={N.apagado} />
             <Text style={[s.p, { textAlign: "center" }]}>{error}</Text>
             <Button title="Reintentar" kind="ghost" onPress={cargar} />
           </View>
         ) : (
-          <View style={s.centro}><ActivityIndicator color={C.primary} /></View>
+          <View style={s.centro}><ActivityIndicator color={N.marca} /></View>
         )}
       </View>
 
@@ -93,7 +93,7 @@ export default function TerminosScreen({ onAceptado }: { onAceptado: (version: s
         accessibilityRole="checkbox"
         accessibilityState={{ checked: acepto, disabled: !leido }}
       >
-        <MaterialCommunityIcons name={acepto ? "checkbox-marked" : "checkbox-blank-outline"} size={24} color={acepto ? C.primary : C.muted} />
+        <MaterialCommunityIcons name={acepto ? "checkbox-marked" : "checkbox-blank-outline"} size={24} color={acepto ? N.marca : N.apagado} />
         <Text style={s.checkText}>He leído y acepto los términos y condiciones y la política de privacidad</Text>
       </Pressable>
       {error && terminos ? <Text style={s.error}>{error}</Text> : null}
@@ -107,20 +107,20 @@ export default function TerminosScreen({ onAceptado }: { onAceptado: (version: s
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 18 },
+  root: { flex: 1, backgroundColor: N.fondo, paddingHorizontal: 18 },
   head: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 },
-  ic: { width: 46, height: 46, borderRadius: 14, backgroundColor: C.blue50, alignItems: "center", justifyContent: "center" },
-  title: { fontFamily: F.display, fontSize: 26, color: C.ink, letterSpacing: -0.3 },
-  sub: { color: C.muted, fontSize: 13, marginTop: 2 },
-  version: { color: C.muted, fontSize: 12, marginTop: 6 },
-  caja: { flex: 1, backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: "hidden" },
+  ic: { width: 46, height: 46, borderRadius: 14, backgroundColor: N.suave, alignItems: "center", justifyContent: "center" },
+  title: { fontFamily: FI.semi, fontSize: 22, lineHeight: 28, color: "#000" },
+  sub: { fontFamily: FI.reg, color: N.apagado, fontSize: 13.5, marginTop: 2 },
+  version: { fontFamily: FI.reg, color: N.apagado, fontSize: 12, marginTop: 6 },
+  caja: { flex: 1, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: N.borde, overflow: "hidden" },
   texto: { padding: 18 },
-  h3: { fontSize: 15, fontWeight: "600", color: C.ink, marginBottom: 4 },
-  p: { fontSize: 14.5, lineHeight: 22, color: C.text2 },
+  h3: { fontFamily: FI.semi, fontSize: 15, color: N.tinta, marginBottom: 4 },
+  p: { fontFamily: FI.reg, fontSize: 14.5, lineHeight: 22, color: N.apagado },
   centro: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
-  hint: { color: C.muted, fontSize: 12.5, marginTop: 10 },
+  hint: { fontFamily: FI.reg, color: N.apagado, fontSize: 12.5, marginTop: 10 },
   check: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginTop: 10, paddingVertical: 4 },
-  checkText: { flex: 1, fontSize: 14.5, lineHeight: 20, color: C.ink },
-  error: { color: C.danger, fontSize: 13, marginTop: 8 },
+  checkText: { flex: 1, fontFamily: FI.reg, fontSize: 14.5, lineHeight: 20, color: N.tinta },
+  error: { fontFamily: FI.med, color: N.rojoTexto, fontSize: 13, marginTop: 8 },
   botones: { flexDirection: "row", gap: 10, marginTop: 14 },
 });

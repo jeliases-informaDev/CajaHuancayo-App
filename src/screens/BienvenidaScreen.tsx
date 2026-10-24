@@ -53,8 +53,8 @@ const s = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: "#4954B8", alignItems: "center" },
   arte: { overflow: "hidden" },
   texto: { flex: 1, width: "100%", maxWidth: 440, alignItems: "center", justifyContent: "center", paddingHorizontal: 28, paddingBottom: 56 },
-  titulo: { fontFamily: FI.light, fontSize: 35, lineHeight: 44, letterSpacing: 11, color: "#fff", textAlign: "center", paddingLeft: 11 },
+  titulo: { fontFamily: FI.etiquetaLigera, fontSize: 40, lineHeight: 48, letterSpacing: 8, color: "#fff", textAlign: "center", paddingLeft: 8 },
   sub: { fontFamily: FI.reg, fontSize: 15, lineHeight: 22, color: "#fff", textAlign: "center", marginTop: 0 },
   boton: { marginTop: 48, alignSelf: "center", maxWidth: 320, width: "100%", height: 50, borderRadius: 25, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", shadowColor: "#1B2060", shadowOpacity: 0.55, shadowRadius: 0, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
-  botonTexto: { fontFamily: FI.semi, fontSize: 15, letterSpacing: 3, color: "#524CBC", paddingLeft: 3 },
+  botonTexto: { fontFamily: FI.etiqueta, fontSize: 17, letterSpacing: 3.4, color: "#524CBC", paddingLeft: 3 },
 });

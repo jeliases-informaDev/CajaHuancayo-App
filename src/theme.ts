@@ -9,39 +9,13 @@ export const C = {
   success: '#0C8559', warning: '#A8620A', danger: '#C0243E', info: '#2D41C4', purple: '#7A2C9E',
   successBg: '#E1F4EA', warningBg: '#FFF0D1', dangerBg: '#FDE7EB', infoBg: '#EAEDFC', magentaBg: '#FBE6F3',
 };
-// Degradado de marca: se usa con moderación (sello, barra de avance, línea de acento).
-export const G = {
-  brand: ['#C11F8C', '#7A2C9E', '#2D41C4'] as const,
-  hero: ['#E9EDFF', '#FFFFFF'] as const,
-  glow: ['rgba(193,31,140,0.13)', 'rgba(193,31,140,0)'] as const,
-  action: ['#3A52D9', '#2D41C4'] as const,
-  danger: ['#D42F4A', '#C0243E'] as const,
-  soft: ['#FBE6F3', '#EFEAF8', '#EAEDFC'] as const,
-};
-// Instrument Serif (solo titulares y cifras grandes); el resto de la interfaz usa la fuente del sistema.
-export const F = { display: 'InstrumentSerif_400Regular', displayLight: 'InstrumentSerif_400Regular', italic: 'InstrumentSerif_400Regular_Italic' };
 // Sombras con el tinte azul de la marca (nunca negro puro).
 export const shadow = {
   sm: { shadowColor: '#0E1332', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   md: { shadowColor: '#0E1332', shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
 };
-// Color estable por persona para los avatares (mismas parejas que el panel).
-const AVATARES: [string, string][] = [['#E8ECFD', '#2D41C4'], ['#FBE6F3', '#A3187A'], ['#EFE6FA', '#6B2A94'], ['#E0F4EC', '#0B7A53'], ['#FDEFD6', '#9A5A00'], ['#E3EDF7', '#2B5A87']];
-export const avatarTone = (name?: string | null) => {
-  let h = 0;
-  for (const c of String(name || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const [bg, fg] = AVATARES[h % AVATARES.length];
-  return { bg, fg };
-};
 export const initials = (name?: string | null) => (String(name || '?').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') || '?');
-export const statusColors: Record<string, string> = {
-  LIBRE: '#3A4165', PENDIENTE: C.warning, PROGRAMADA: C.warning, EN_VISITA: C.info,
-  EN_PROCESO: C.success, GESTIONADO: C.success, VISITADO: C.success, FINALIZADA: C.info,
-  REPROGRAMADO: C.warning, NO_ENCONTRADO: C.danger, CANCELADA: C.danger,
-  ACTIVO: C.success, INACTIVO: '#666D92', APTO: C.success, NO_APTO: C.danger,
-};
 export const money = (value: unknown) => Number(value || 0).toLocaleString('es-PE', { style: 'currency', currency: 'PEN', maximumFractionDigits: 2 });
-export const shortDate = (value: unknown) => value ? new Date(String(value)).toLocaleDateString('es-PE', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 // Diseño nuevo de inicio (Bienvenida, Inicio de sesión y Hoy): paleta y letra del Figma. Las demás pantallas siguen con C y F hasta que lleguen sus diseños.
 export const N = {
@@ -52,8 +26,9 @@ export const N = {
   panel: '#F8F9FD', marino: '#15237A', borde2: '#E4E7EE', verdeTexto: '#267254', verdeFondo: '#E7F4ED', ambarBorde: '#F2C97D',
   rojoBoton: '#D1274F', rojoFuerte: '#BC1215', gris: '#EEF0F4', grisTexto: '#626D81', hueco: '#B3B9C8',
 };
-// Inter: una familia por peso (en Android el peso no se pide con fontWeight sino con el nombre de la familia).
-export const FI = { light: 'Inter_300Light', reg: 'Inter_400Regular', med: 'Inter_500Medium', semi: 'Inter_600SemiBold', bold: 'Inter_700Bold' };
+// Tipografía de la web (Be Vietnam Pro) y, para los rótulos en mayúsculas, Beiruti. En Android el peso no se pide con fontWeight sino con el nombre de la familia.
+// La web no usa 700: «bold» es la semibold, igual que sus títulos.
+export const FI = { light: 'BeVietnamPro_300Light', reg: 'BeVietnamPro_400Regular', med: 'BeVietnamPro_500Medium', semi: 'BeVietnamPro_600SemiBold', bold: 'BeVietnamPro_600SemiBold', etiquetaLigera: 'Beiruti_300Light', etiqueta: 'Beiruti_400Regular', etiquetaFuerte: 'Beiruti_600SemiBold' };
 // «CARMEN ROSA HUAMAN» o «HUAMAN POMA, CARMEN ROSA» (como viene de la base) → «Carmen Rosa Huaman Poma»; las direcciones solo se pasan a minúsculas con inicial.
 const MENORES = new Set(['de', 'del', 'y', 'e']);
 export const conMayusculas = (texto?: string | null) =>
