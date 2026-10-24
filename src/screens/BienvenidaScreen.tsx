@@ -29,7 +29,7 @@ export default function BienvenidaScreen({ onEntrar }: { onEntrar: () => void })
           source={require("../../assets/bienvenida/equipo.webp")}
           accessibilityLabel="Un asesor de Caja Huancayo con una clienta, revisando la ficha en la tableta"
           resizeMode="contain"
-          style={{ position: "absolute", left: 0, top: 106 * k, width: ancho, height: ancho * (998 / 1000) }}
+          style={{ position: "absolute", left: 0, top: 112 * k, width: ancho * 0.9, height: ancho * 0.9 * (998 / 1000) }}
         />
         <Svg width={ancho} height={ALTO_ARTE * k} viewBox={`0 0 ${ANCHO} ${ALTO_ARTE}`} preserveAspectRatio="none" style={StyleSheet.absoluteFill} pointerEvents="none">
           <Path d={MANCHA} fill={N.marca} />
