@@ -42,3 +42,20 @@ export const statusColors: Record<string, string> = {
 };
 export const money = (value: unknown) => Number(value || 0).toLocaleString('es-PE', { style: 'currency', currency: 'PEN', maximumFractionDigits: 2 });
 export const shortDate = (value: unknown) => value ? new Date(String(value)).toLocaleDateString('es-PE', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+// Diseño nuevo de inicio (Bienvenida, Inicio de sesión y Hoy): paleta y letra del Figma. Las demás pantallas siguen con C y F hasta que lleguen sus diseños.
+export const N = {
+  marca: '#4757B8', marca2: '#4C51B9', violeta: '#7B25CD', violeta2: '#7E22CE', verde: '#36CE28',
+  tinta: '#20263D', apagado: '#626D88', borde: '#DEE2EF', suave: '#EFF0FC', fondo: '#F1F2F8', blanco: '#FFFFFF',
+  rojo: '#FB0303', rojoTexto: '#A33C43', rojoFondo: '#FCEBED', ambar: '#8A5917', ambarFondo: '#FFF0D1', campo: '#F9FAFB',
+};
+// Inter: una familia por peso (en Android el peso no se pide con fontWeight sino con el nombre de la familia).
+export const FI = { light: 'Inter_300Light', reg: 'Inter_400Regular', med: 'Inter_500Medium', semi: 'Inter_600SemiBold', bold: 'Inter_700Bold' };
+// «CARMEN ROSA HUAMAN» o «HUAMAN POMA, CARMEN ROSA» (como viene de la base) → «Carmen Rosa Huaman Poma»; las direcciones solo se pasan a minúsculas con inicial.
+const MENORES = new Set(['de', 'del', 'y', 'e']);
+export const conMayusculas = (texto?: string | null) =>
+  String(texto || '').trim().toLowerCase().split(/\s+/).filter(Boolean).map((p, i) => (i > 0 && MENORES.has(p) ? p : p.replace(/^(\W*)(\p{L})/u, (_, a, l) => a + l.toUpperCase()))).join(' ');
+export const nombreDePersona = (raw?: string | null) => {
+  const partes = String(raw || '').split(',');
+  return conMayusculas(partes.length === 2 && partes[0].trim() && partes[1].trim() ? `${partes[1].trim()} ${partes[0].trim()}` : String(raw || ''));
+};
