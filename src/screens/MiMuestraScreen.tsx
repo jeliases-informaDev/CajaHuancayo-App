@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../AuthContext";
-import { Avatar, Badge, Empty, Header, Loading, Screen, Seg } from "../ui";
-import { C, shadow } from "../theme";
-import FichaWizard from "../ficha/FichaWizard";
-import { comoLlegarA } from "../ficha/destino";
+import { Empty, Loading, Screen } from "../ui";
+import { conMayusculas, estadoDeCaso, FI, N, nombreDePersona } from "../theme";
+import FichaWizard, { type ResultadoEnvio } from "../ficha/FichaWizard";
+import AvisoEnvio from "../ficha/AvisoEnvio";
 import { cacheGet, cacheSet } from "../offlineSync";
-import { cargarMuestra } from "../muestra";
+import { cargarMuestra, type ResumenMuestra } from "../muestra";
 import { recordarEmpresa } from "../empresa";
 
 function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -31,6 +32,8 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
   const [error, setError] = useState("");
   // Si llega desde «Revisar caso» (pantalla Hoy), la ficha de ese caso se abre de entrada.
   const [selected, setSelected] = useState<any>(abrirAsignacion);
+  const [resumen, setResumen] = useState<ResumenMuestra | null>(null); // conteos de TODA la muestra para los filtros
+  const [aviso, setAviso] = useState<ResultadoEnvio | null>(null); // «Tus respuestas han sido enviadas» al cerrar la ficha
 
   // "Disponibles": expedientes pendientes de cualquier distrito que nadie tomó todavía, del más antiguo al más nuevo (no dependen de dónde estés) —
   // el auditor se los puede auto-asignar en vez de esperar a que el supervisor lo haga.
@@ -61,10 +64,11 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
       const m = await cargarMuestra(api, {
         forzar,
         // la primera página se pinta enseguida; el resto llega mientras el auditor ya puede trabajar
-        onPagina: (parcial) => { if (mounted.current) { setAsignaciones(parcial.data); setProgreso({ cargados: parcial.data.length, total: parcial.total, completa: parcial.completa }); setLoading(false); } },
+        onPagina: (parcial) => { if (mounted.current) { setAsignaciones(parcial.data); setResumen(parcial.resumen); setProgreso({ cargados: parcial.data.length, total: parcial.total, completa: parcial.completa }); setLoading(false); } },
       });
       if (!mounted.current) return;
       setAsignaciones(m.data);
+      setResumen(m.resumen);
       setProgreso({ cargados: m.data.length, total: m.total, completa: m.completa });
       setError("");
       cacheSet(CACHE_KEY_MUESTRA, m.data);
@@ -158,7 +162,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
         geo={geoConfig}
         currentLocation={currentLocation}
         onClose={() => setSelected(null)}
-        onSent={() => load(true, true)}
+        onSent={(resultado) => { load(true, true); if (resultado) setAviso(resultado); }}
       />
     );
   }
@@ -181,129 +185,154 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     const m = distanciaMetros(currentLocation.latitude, currentLocation.longitude, lat, lng);
     return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
   };
-  // En MYPE con negocio pregunta a qué dirección va (domicilio o negocio); en los demás casos va directo.
-  const comoLlegar = (exp: any) => comoLlegarA(exp, currentLocation);
 
-  const Etiqueta = ({ exp }: { exp: any }) => {
+  // Conteos de los filtros: los del servidor (toda la muestra) o, si aún no llegaron, los de lo ya descargado.
+  const cuenta = resumen
+    ? { todos: resumen.total, MYPE: resumen.OTROS, CONSUMO: resumen.CONSUMO, ALTA: resumen.ALTA }
+    : { todos: asignaciones.length, MYPE: asignaciones.filter((a) => a.expediente?.tipo_credito === "OTROS").length, CONSUMO: asignaciones.filter((a) => a.expediente?.tipo_credito === "CONSUMO").length, ALTA: asignaciones.filter((a) => a.prioridad === "ALTA").length };
+  const FILTROS: { id: typeof filtro; label: string; n?: number }[] = [
+    { id: "TODOS", label: "Todos", n: vista === "mia" ? cuenta.todos : undefined },
+    { id: "MYPE", label: "MYPE", n: vista === "mia" ? cuenta.MYPE : undefined },
+    { id: "CONSUMO", label: "Consumo", n: vista === "mia" ? cuenta.CONSUMO : undefined },
+    ...(vista === "mia" ? [{ id: "ALTA" as const, label: "Prioritarios", n: cuenta.ALTA }] : []),
+  ];
+
+  const subtitulo = vista === "mia"
+    ? (progreso && !progreso.completa ? `Descargando ${progreso.cargados} de ${progreso.total} casos…` : "")
+    : `${dispInfo ? dispInfo.total : visiblesDisp.length} disponible(s) para tomar`;
+
+  // Prioridad: chip y, en la tarjeta, un tinte en el borde derecho (rojo = alta, ámbar = media).
+  const PRIORIDAD: Record<string, { t: string; bg: string; fg: string; tinte: string | null }> = {
+    ALTA: { t: "Prioridad alta", bg: N.rojoFondo, fg: N.rojoTexto, tinte: "255,0,4" },
+    MEDIA: { t: "Prioridad media", bg: N.ambarFondo, fg: N.ambar, tinte: "254,161,0" },
+    BAJA: { t: "Prioridad baja", bg: N.gris, fg: N.grisTexto, tinte: null },
+  };
+
+  const Tarjeta = ({ exp, prioridad, estado, onPress, children }: { exp: any; prioridad?: string; estado?: string; onPress?: () => void; children?: React.ReactNode }) => {
     const mype = exp.tipo_credito === "OTROS";
+    const pr = PRIORIDAD[String(prioridad || "").toUpperCase()];
+    const dist = distanciaA(exp);
     return (
-      <View style={[s.tag, { backgroundColor: mype ? C.magentaBg : C.infoBg }]}>
-        <Text style={[s.tagText, { color: mype ? C.magenta : C.primary }]}>{mype ? "MYPE" : "CONSUMO"}</Text>
-      </View>
+      <Pressable onPress={onPress} disabled={!onPress} testID={onPress ? "caso-card" : "caso-disponible"} accessibilityRole={onPress ? "button" : undefined} style={({ pressed }) => [s.tarjeta, pressed && { opacity: 0.85 }]}>
+        {pr?.tinte ? <LinearGradient colors={[`rgba(${pr.tinte},0)`, `rgba(${pr.tinte},0.22)`]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={s.tinte} pointerEvents="none" /> : null}
+        <View style={s.chips}>
+          <View style={[s.chip, { backgroundColor: N.suave }]}><Text style={[s.chipTexto, { color: N.marca }]}>{mype ? "MYPE" : "Consumo"}</Text></View>
+          {pr ? <View style={[s.chip, { backgroundColor: pr.bg }]}><Text style={[s.chipTexto, { color: pr.fg }]}>{pr.t}</Text></View> : null}
+        </View>
+        <Text style={s.nombre} numberOfLines={1}>{nombreDePersona(exp.nombres_cliente) || "Cliente sin nombre"}</Text>
+        <Text style={s.codigo} numberOfLines={1}>{exp.codigo_expediente}</Text>
+        <View style={s.linea} />
+        <Text style={s.direccion} numberOfLines={1}>{conMayusculas(exp.direccion_domicilio) || "Sin dirección registrada"}</Text>
+        <View style={s.pie}>
+          <Text style={s.estado} numberOfLines={1}>{[estado ? estadoDeCaso(estado) : null, conMayusculas(exp.departamento || exp.distrito)].filter(Boolean).join(" · ")}</Text>
+          {dist ? <Text style={s.distancia}>{dist} ref.</Text> : null}
+        </View>
+        {children}
+      </Pressable>
     );
   };
 
-  const FILTROS: { id: typeof filtro; label: string }[] = [
-    { id: "TODOS", label: "Todos" }, { id: "MYPE", label: "MYPE" }, { id: "CONSUMO", label: "Consumo" }, { id: "ALTA", label: "Prioritarios" },
-  ];
-
   return (
-    <Screen refreshControl={<RefreshControl refreshing={vista === "mia" ? refreshing : loadingDisponibles} onRefresh={() => (vista === "mia" ? load(true, true) : loadDisponibles(1))} colors={[C.primary]} />}>
-      <Header title="Mi muestra" subtitle={vista === "mia" ? `${visiblesMias.length} de ${progreso && progreso.total > asignaciones.length ? progreso.total : asignaciones.length} caso(s)${progreso && !progreso.completa ? ` · descargando ${progreso.cargados} de ${progreso.total}…` : ""}` : `${dispInfo ? dispInfo.total : visiblesDisp.length} disponible(s) para tomar`} />
+    <>
+      <Screen refreshControl={<RefreshControl refreshing={vista === "mia" ? refreshing : loadingDisponibles} onRefresh={() => (vista === "mia" ? load(true, true) : loadDisponibles(1))} colors={[N.marca]} />}>
+        <View style={s.titulo}>
+          <MaterialCommunityIcons name="folder-outline" size={26} color="#000" />
+          <Text style={s.tituloTexto} accessibilityRole="header">Mi muestra</Text>
+        </View>
+        {subtitulo ? <Text style={s.subtitulo}>{subtitulo}</Text> : null}
 
-      {autoasignacion ? <Seg options={[{ id: "mia", label: "Asignados" }, { id: "disponibles", label: "Disponibles" }]} value={vista} onChange={setVista} /> : null}
-
-      <View style={s.search}>
-        <MaterialCommunityIcons name="magnify" size={19} color={C.muted} />
-        <TextInput style={s.searchInput} value={query} onChangeText={setQuery} placeholder="Buscar por cliente, código, documento o distrito" placeholderTextColor={C.placeholder} autoCorrect={false} />
-        {query ? <Pressable onPress={() => setQuery("")} hitSlop={8}><MaterialCommunityIcons name="close-circle" size={18} color={C.placeholder} /></Pressable> : null}
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filters}>
-        {FILTROS.filter((f) => vista === "mia" || f.id !== "ALTA").map((f) => (
-          <Pressable key={f.id} onPress={() => setFiltro(f.id)} style={[s.filter, filtro === f.id && s.filterOn]}>
-            <Text style={[s.filterText, filtro === f.id && s.filterTextOn]}>{f.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      {vista === "disponibles" ? (
-        <>
-          <Text style={s.hint}>Casos pendientes que ningún asesor ha tomado, de cualquier distrito: toma los que quieras. Al tomar uno, pasa a tu muestra.{tope && tope.maximo > 0 ? ` Tienes ${tope.abiertos} de ${tope.maximo} casos abiertos${tope.cupo === 0 ? ": llegaste al máximo, termina o pide que te quiten alguno para tomar otro." : "."}` : ""}</Text>
-          {errorDisponibles && !disponibles.length ? <Empty title="No pudimos cargar la lista" text={errorDisponibles} /> : null}
-          {!errorDisponibles && !loadingDisponibles && !visiblesDisp.length ? <Empty title="Nada para mostrar" text={disponibles.length ? "Ningún caso coincide con la búsqueda o el filtro." : "No hay casos pendientes sin tomar."} /> : null}
-          {visiblesDisp.map((exp) => {
-            const claiming = claimingId === exp.id_expediente;
-            return (
-              <View key={exp.id_expediente} style={s.row}>
-                <Avatar name={exp.nombres_cliente} size={44} />
-                <View style={s.rowBody}>
-                  <View style={s.rowTop}><Text style={s.name} numberOfLines={1}>{exp.nombres_cliente}</Text><Etiqueta exp={exp} /></View>
-                  <Text style={s.meta} numberOfLines={1}>{exp.codigo_expediente} · {exp.distrito || "Sin distrito"}{distanciaA(exp) ? ` · a ${distanciaA(exp)}` : ""}</Text>
-                  <Text style={s.addr} numberOfLines={1}>{exp.direccion_domicilio || "Sin dirección registrada"}</Text>
-                  <Pressable onPress={() => tomarCaso(exp.id_expediente)} disabled={claiming || tope?.cupo === 0} style={[s.takeBtn, (claiming || tope?.cupo === 0) && { opacity: 0.6 }]}>
-                    <MaterialCommunityIcons name={claiming ? "timer-sand" : "hand-extended-outline"} size={16} color="#fff" />
-                    <Text style={s.takeText}>{claiming ? "Tomando…" : "Tomar este caso"}</Text>
-                  </Pressable>
-                </View>
-              </View>
-            );
-          })}
-          {dispInfo && dispInfo.page < dispInfo.pages ? (
-            <Pressable onPress={() => loadDisponibles(dispInfo.page + 1)} disabled={cargandoMas} style={[s.verMas, cargandoMas && { opacity: 0.6 }]}>
-              <Text style={s.verMasTxt}>{cargandoMas ? "Cargando…" : `Ver más (quedan ${dispInfo.total - disponibles.length})`}</Text>
-            </Pressable>
-          ) : null}
-        </>
-      ) : (
-        <>
-          {error && !asignaciones.length ? <Empty title="No pudimos cargar tu muestra" text={error} /> : null}
-          {!error && !asignaciones.length ? <Empty title="Sin casos asignados" text={autoasignacion ? "Tu supervisor aún no te asignó una muestra. Revisa «Disponibles» para tomar un caso." : "Tu supervisor aún no te asignó una muestra."} /> : null}
-          {!!asignaciones.length && !visiblesMias.length ? <Empty title="Nada para mostrar" text="Ningún caso coincide con la búsqueda o el filtro." /> : null}
-          {visiblesMias.map((item) => {
-            const exp = item.expediente;
-            const dist = distanciaA(exp);
-            return (
-              <Pressable key={item.id_asignacion} onPress={() => setSelected(item)} style={({ pressed }) => [s.row, pressed && s.rowPressed]}>
-                <Avatar name={exp.nombres_cliente} size={44} />
-                <View style={s.rowBody}>
-                  <View style={s.rowTop}><Text style={s.name} numberOfLines={1}>{exp.nombres_cliente}</Text><Etiqueta exp={exp} /></View>
-                  <Text style={s.meta} numberOfLines={1}>{exp.codigo_expediente} · {exp.distrito || "Sin distrito"}</Text>
-                  <Text style={s.addr} numberOfLines={1}>{exp.direccion_domicilio || "Sin dirección registrada"}</Text>
-                  <View style={s.rowFoot}>
-                    {item.prioridad === "ALTA" ? <Badge status="NO_ENCONTRADO" label="Prioridad alta" /> : null}
-                    {dist ? <View style={s.dist}><MaterialCommunityIcons name="navigation-variant-outline" size={13} color={C.primary} /><Text style={s.distText}>a {dist}</Text></View> : null}
-                    <View style={{ flex: 1 }} />
-                    <Pressable onPress={(e) => { e.stopPropagation(); comoLlegar(exp); }} hitSlop={6} style={s.goto}>
-                      <MaterialCommunityIcons name="directions" size={15} color={C.primary} />
-                      <Text style={s.gotoText}>Cómo llegar</Text>
-                    </Pressable>
-                  </View>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={22} color={C.placeholder} />
+        {autoasignacion ? (
+          <View style={s.alternar} accessibilityRole="tablist">
+            {([["mia", "Asignados"], ["disponibles", "Disponibles"]] as const).map(([id, rotulo]) => (
+              <Pressable key={id} onPress={() => setVista(id)} accessibilityRole="tab" accessibilityState={{ selected: vista === id }} style={[s.alternarItem, vista === id && s.alternarItemOn]}>
+                <Text style={[s.alternarTexto, vista === id && s.alternarTextoOn]}>{rotulo}</Text>
               </Pressable>
-            );
-          })}
-        </>
-      )}
-    </Screen>
+            ))}
+          </View>
+        ) : null}
+
+        <View style={s.buscar}>
+          <MaterialCommunityIcons name="magnify" size={22} color={N.marca} />
+          <TextInput style={s.buscarInput} value={query} onChangeText={setQuery} placeholder="Buscar cliente o código" placeholderTextColor={N.hueco} autoCorrect={false} accessibilityLabel="Buscar cliente, código, documento o distrito" />
+          {query ? <Pressable onPress={() => setQuery("")} hitSlop={8} accessibilityLabel="Borrar búsqueda"><MaterialCommunityIcons name="close-circle" size={18} color={N.hueco} /></Pressable> : null}
+        </View>
+        <View style={s.filtros}>
+          {FILTROS.map((f) => (
+            <Pressable key={f.id} onPress={() => setFiltro(f.id)} accessibilityRole="button" accessibilityState={{ selected: filtro === f.id }} style={[s.filtro, filtro === f.id && s.filtroOn]}>
+              <Text style={[s.filtroTexto, filtro === f.id && s.filtroTextoOn]}>{f.label}{f.n !== undefined ? ` · ${f.n}` : ""}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {vista === "disponibles" ? (
+          <>
+            <Text style={s.nota}>Casos pendientes que ningún asesor ha tomado, de cualquier distrito: toma los que quieras. Al tomar uno, pasa a tu muestra.{tope && tope.maximo > 0 ? ` Tienes ${tope.abiertos} de ${tope.maximo} casos abiertos${tope.cupo === 0 ? ": llegaste al máximo, termina o pide que te quiten alguno para tomar otro." : "."}` : ""}</Text>
+            {errorDisponibles && !disponibles.length ? <Empty title="No pudimos cargar la lista" text={errorDisponibles} /> : null}
+            {!errorDisponibles && !loadingDisponibles && !visiblesDisp.length ? <Empty title="Nada para mostrar" text={disponibles.length ? "Ningún caso coincide con la búsqueda o el filtro." : "No hay casos pendientes sin tomar."} /> : null}
+            {visiblesDisp.map((exp) => {
+              const claiming = claimingId === exp.id_expediente;
+              return (
+                <Tarjeta key={exp.id_expediente} exp={exp}>
+                  <Pressable onPress={() => tomarCaso(exp.id_expediente)} disabled={claiming || tope?.cupo === 0} accessibilityRole="button" style={[s.tomar, (claiming || tope?.cupo === 0) && { opacity: 0.6 }]}>
+                    <MaterialCommunityIcons name={claiming ? "timer-sand" : "hand-extended-outline"} size={18} color="#fff" />
+                    <Text style={s.tomarTexto}>{claiming ? "Tomando…" : "Tomar este caso"}</Text>
+                  </Pressable>
+                </Tarjeta>
+              );
+            })}
+            {dispInfo && dispInfo.page < dispInfo.pages ? (
+              <Pressable onPress={() => loadDisponibles(dispInfo.page + 1)} disabled={cargandoMas} style={[s.verMas, cargandoMas && { opacity: 0.6 }]}>
+                <Text style={s.verMasTxt}>{cargandoMas ? "Cargando…" : `Ver más (quedan ${dispInfo.total - disponibles.length})`}</Text>
+              </Pressable>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {error && !asignaciones.length ? <Empty title="No pudimos cargar tu muestra" text={error} /> : null}
+            {!error && !asignaciones.length ? <Empty title="Sin casos asignados" text={autoasignacion ? "Tu supervisor aún no te asignó una muestra. Revisa «Disponibles» para tomar un caso." : "Tu supervisor aún no te asignó una muestra."} /> : null}
+            {!!asignaciones.length && !visiblesMias.length ? <Empty title="Nada para mostrar" text="Ningún caso coincide con la búsqueda o el filtro." /> : null}
+            {visiblesMias.map((item) => (
+              <Tarjeta key={item.id_asignacion} exp={item.expediente} prioridad={item.prioridad} estado={item.estado} onPress={() => setSelected(item)} />
+            ))}
+          </>
+        )}
+      </Screen>
+      <AvisoEnvio aviso={aviso} onClose={() => setAviso(null)} />
+    </>
   );
 }
 
 const s = StyleSheet.create({
-  verMas: { alignSelf: "center", marginTop: 6, marginBottom: 14, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 12, backgroundColor: "#E6ECFF" },
-  verMasTxt: { fontSize: 12, fontWeight: "800", color: "#1236C7" },
-  search: { flexDirection: "row", alignItems: "center", gap: 9, minHeight: 50, borderWidth: 1, borderColor: C.borderStrong, borderRadius: 14, paddingHorizontal: 14, backgroundColor: "#fff" },
-  searchInput: { flex: 1, fontSize: 14, color: C.ink, paddingVertical: 10 },
-  filters: { gap: 8, paddingRight: 8 },
-  filter: { paddingHorizontal: 15, height: 36, borderRadius: 18, borderWidth: 1, borderColor: C.borderStrong, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
-  filterOn: { backgroundColor: C.blue50, borderColor: C.primary2 },
-  filterText: { fontSize: 12.5, fontWeight: "500", color: C.text2 },
-  filterTextOn: { color: C.primary, fontWeight: "700" },
-  hint: { fontSize: 12, color: C.muted, lineHeight: 17 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14, ...shadow.sm },
-  rowPressed: { backgroundColor: C.surface2 },
-  rowBody: { flex: 1, gap: 2 },
-  rowTop: { flexDirection: "row", alignItems: "center", gap: 8 },
-  name: { flex: 1, fontSize: 15.5, fontWeight: "700", color: C.ink },
-  tag: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  tagText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
-  meta: { fontSize: 12, color: C.text2, fontWeight: "500" },
-  addr: { fontSize: 12, color: C.muted },
-  rowFoot: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
-  dist: { flexDirection: "row", alignItems: "center", gap: 4 },
-  distText: { fontSize: 12, fontWeight: "600", color: C.primary },
-  goto: { flexDirection: "row", alignItems: "center", gap: 4 },
-  gotoText: { fontSize: 12, fontWeight: "600", color: C.primary },
-  takeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, minHeight: 44, borderRadius: 12, backgroundColor: C.primary },
-  takeText: { fontSize: 13.5, fontWeight: "600", color: "#fff" },
+  titulo: { flexDirection: "row", alignItems: "center", gap: 8 },
+  tituloTexto: { fontFamily: FI.bold, fontSize: 24, lineHeight: 30, color: "#000" },
+  subtitulo: { fontFamily: FI.reg, fontSize: 13, color: N.apagado, marginTop: -8 },
+  alternar: { flexDirection: "row", padding: 3, borderRadius: 12, backgroundColor: N.borde2, gap: 2 },
+  alternarItem: { flex: 1, minHeight: 38, alignItems: "center", justifyContent: "center", borderRadius: 10 },
+  alternarItemOn: { backgroundColor: "#fff" },
+  alternarTexto: { fontFamily: FI.med, fontSize: 14, color: N.apagado },
+  alternarTextoOn: { fontFamily: FI.semi, color: N.tinta },
+  buscar: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 54, borderWidth: 1, borderColor: N.borde, borderRadius: 12, paddingHorizontal: 14, backgroundColor: "#fff" },
+  buscarInput: { flex: 1, fontFamily: FI.reg, fontSize: 15, color: N.tinta, paddingVertical: 12 },
+  filtros: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  filtro: { width: "48%", flexGrow: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: N.borde, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  filtroOn: { backgroundColor: N.marca, borderColor: N.marca },
+  filtroTexto: { fontFamily: FI.med, fontSize: 14.5, color: N.apagado },
+  filtroTextoOn: { fontFamily: FI.semi, color: "#fff" },
+  nota: { fontFamily: FI.reg, fontSize: 13, color: N.apagado, lineHeight: 19 },
+  tarjeta: { backgroundColor: "#fff", borderWidth: 1, borderColor: N.borde, borderRadius: 16, padding: 16, gap: 6, overflow: "hidden", shadowColor: "#20263D", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  tinte: { position: "absolute", top: 0, bottom: 0, right: 0, width: "34%" },
+  chips: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 },
+  chip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  chipTexto: { fontFamily: FI.semi, fontSize: 12.5 },
+  nombre: { fontFamily: FI.bold, fontSize: 19, lineHeight: 26, color: N.tinta },
+  codigo: { fontFamily: FI.reg, fontSize: 13.5, color: N.apagado, marginTop: -4 },
+  linea: { height: 1, backgroundColor: N.borde2, marginVertical: 4 },
+  direccion: { fontFamily: FI.reg, fontSize: 14.5, color: N.apagado },
+  pie: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  estado: { flex: 1, fontFamily: FI.reg, fontSize: 13.5, color: N.apagado },
+  distancia: { fontFamily: FI.med, fontSize: 14, color: N.ambar },
+  tomar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8, minHeight: 46, borderRadius: 10, backgroundColor: N.marca },
+  tomarTexto: { fontFamily: FI.semi, fontSize: 15, color: "#fff" },
+  verMas: { alignSelf: "center", marginTop: 6, marginBottom: 14, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 10, backgroundColor: N.suave },
+  verMasTxt: { fontFamily: FI.semi, fontSize: 13, color: N.marca },
 });

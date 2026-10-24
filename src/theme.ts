@@ -47,7 +47,10 @@ export const shortDate = (value: unknown) => value ? new Date(String(value)).toL
 export const N = {
   marca: '#4757B8', marca2: '#4C51B9', violeta: '#7B25CD', violeta2: '#7E22CE', verde: '#36CE28',
   tinta: '#20263D', apagado: '#626D88', borde: '#DEE2EF', suave: '#EFF0FC', fondo: '#F1F2F8', blanco: '#FFFFFF',
-  rojo: '#FB0303', rojoTexto: '#A33C43', rojoFondo: '#FCEBED', ambar: '#8A5917', ambarFondo: '#FFF0D1', campo: '#F9FAFB',
+  rojo: '#FB0303', rojoTexto: '#A33C43', rojoFondo: '#FCEBED', ambar: '#8A5917', ambarFondo: '#FFF1D8', campo: '#F9FAFB',
+  // segunda tanda de la paleta (pantallas de la ficha, Mi muestra, Mapa y Perfil)
+  panel: '#F8F9FD', marino: '#15237A', borde2: '#E4E7EE', verdeTexto: '#267254', verdeFondo: '#E7F4ED', ambarBorde: '#F2C97D',
+  rojoBoton: '#D1274F', rojoFuerte: '#BC1215', gris: '#EEF0F4', grisTexto: '#626D81', hueco: '#B3B9C8',
 };
 // Inter: una familia por peso (en Android el peso no se pide con fontWeight sino con el nombre de la familia).
 export const FI = { light: 'Inter_300Light', reg: 'Inter_400Regular', med: 'Inter_500Medium', semi: 'Inter_600SemiBold', bold: 'Inter_700Bold' };
@@ -55,6 +58,9 @@ export const FI = { light: 'Inter_300Light', reg: 'Inter_400Regular', med: 'Inte
 const MENORES = new Set(['de', 'del', 'y', 'e']);
 export const conMayusculas = (texto?: string | null) =>
   String(texto || '').trim().toLowerCase().split(/\s+/).filter(Boolean).map((p, i) => (i > 0 && MENORES.has(p) ? p : p.replace(/^(\W*)(\p{L})/u, (_, a, l) => a + l.toUpperCase()))).join(' ');
+// Estado de la asignación, como se lo lee el auditor (la asignación está «activa» mientras la visita sigue pendiente).
+const ESTADOS_CASO: Record<string, string> = { ACTIVA: 'Pendiente', FINALIZADA: 'Visitado', CANCELADA: 'Cancelado', EN_VISITA: 'En visita', PROGRAMADA: 'Programada', REPROGRAMADO: 'Reprogramado' };
+export const estadoDeCaso = (e?: string | null) => ESTADOS_CASO[String(e || '').toUpperCase()] || conMayusculas(String(e || '').replaceAll('_', ' '));
 export const nombreDePersona = (raw?: string | null) => {
   const partes = String(raw || '').split(',');
   return conMayusculas(partes.length === 2 && partes[0].trim() && partes[1].trim() ? `${partes[1].trim()} ${partes[0].trim()}` : String(raw || ''));

@@ -19,7 +19,8 @@ import { WebView } from "react-native-webview";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../AuthContext";
-import { C } from "../theme";
+import { C, conMayusculas, estadoDeCaso, FI, N } from "../theme";
+import CarruselCasos, { ordenarPorCercania, type CasoCarrusel } from "../components/CarruselCasos";
 import GeoFilterBar, { GEO_FILTRO_TODOS, GeoFiltro, matchesGeoFiltro } from "../components/GeoFilterBar";
 import { cargarMuestra } from "../muestra";
 
@@ -59,6 +60,7 @@ function normalizePoint(item: any) {
     asesor: expediente.asesor_responsable,
     prioridad: String(item.prioridad || "MEDIA").toUpperCase(),
     estado: expediente.tipo_credito || "CONSUMO",
+    estadoAsignacion: item.estado,
   };
 }
 
@@ -86,7 +88,7 @@ function mapHtml(points: any[]) {
 
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin><style>
 html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#eaf1f8;font-family:Arial,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-#tiles,#lines,#marks{position:absolute;inset:0}#lines{pointer-events:none}.tile{position:absolute;width:256px;height:256px;background:#dbe7f3;will-change:transform}.mark{position:absolute;width:40px;height:40px;border:0;background:transparent;transform:translate(-20px,-20px);z-index:5;display:flex;align-items:center;justify-content:center}.stop{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#0ead7a;border:2px solid #fff;box-shadow:0 2px 6px #071b435c;color:#fff;font-weight:800;font-size:11px}.dot{display:block;width:13px;height:13px;border-radius:50%;background:#334155;border:2px solid #fff;box-shadow:0 0 0 1px #33415566}.advisor-pin{position:relative;display:flex;width:38px;height:38px;align-items:center;justify-content:center;border:3px solid #fff;border-radius:50%;background:linear-gradient(145deg,#0B22A1,#2563EB);color:#fff;box-shadow:0 4px 12px #071b4375}.advisor-pin:before{content:'';position:absolute;inset:-7px;border:2px solid #38BDF8;border-radius:50%;opacity:.75;animation:advisorPulse 1.8s ease-out infinite}.advisor-pin svg{position:relative;width:21px;height:21px;fill:#fff}@keyframes advisorPulse{0%{transform:scale(.8);opacity:.85}75%,100%{transform:scale(1.35);opacity:0}}.controls{position:absolute;right:12px;top:12px;display:grid;gap:3px;z-index:20}.controls button{width:44px;height:44px;border:1px solid #dbe2ea;background:#fff;color:#071b43;font-size:24px;font-weight:bold;border-radius:10px;box-shadow:0 4px 14px #071b4320}.attr{position:absolute;right:3px;bottom:2px;padding:2px 4px;background:#ffffffdd;color:#475569;font-size:8px;z-index:10}.info{display:none;position:absolute;left:12px;right:12px;bottom:18px;padding:14px 42px 14px 14px;background:#fff;border:1px solid #dbe4ee;border-radius:16px;box-shadow:0 8px 30px #071b4340;z-index:30}.info b{display:block;color:#172033;font-size:14px;line-height:18px;margin-bottom:5px}.meta{color:#64748b;font-size:11px;line-height:16px}.debt{margin-top:7px;color:#071b43;font-size:12px;font-weight:800}.tag{display:inline-block;margin-top:8px;padding:4px 8px;border-radius:999px;color:#fff;font-size:10px;font-weight:800}.go{display:inline-flex;align-items:center;gap:5px;margin-top:10px;margin-left:8px;padding:7px 12px;border-radius:10px;border:0;background:#1236c7;color:#fff;font-size:11px;font-weight:800}.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}.chip{display:inline-block;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:800}.clu{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px #071b4360;color:#fff;font-weight:800;font-size:13px}.ghost{background:#eef2ff!important;color:#1236c7!important}.close{position:absolute;right:8px;top:8px;width:30px;height:30px;border:0;border-radius:10px;background:#f1f5f9;color:#475569;font-size:20px}.loading{position:absolute;left:12px;top:12px;background:#ffffffee;border-radius:12px;padding:8px 10px;color:#475569;font-size:11px;font-weight:700;z-index:9}
+#tiles,#lines,#marks{position:absolute;inset:0}#lines{pointer-events:none}.tile{position:absolute;width:256px;height:256px;background:#dbe7f3;will-change:transform}.mark{position:absolute;width:40px;height:40px;border:0;background:transparent;transform:translate(-20px,-20px);z-index:5;display:flex;align-items:center;justify-content:center}.stop{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#0ead7a;border:2px solid #fff;box-shadow:0 2px 6px #071b435c;color:#fff;font-weight:800;font-size:11px}.dot{display:block;width:13px;height:13px;border-radius:50%;background:#334155;border:2px solid #fff;box-shadow:0 0 0 1px #33415566}.advisor-pin{position:relative;display:flex;width:38px;height:38px;align-items:center;justify-content:center;border:3px solid #fff;border-radius:50%;background:linear-gradient(145deg,#0B22A1,#2563EB);color:#fff;box-shadow:0 4px 12px #071b4375}.advisor-pin:before{content:'';position:absolute;inset:-7px;border:2px solid #38BDF8;border-radius:50%;opacity:.75;animation:advisorPulse 1.8s ease-out infinite}.advisor-pin svg{position:relative;width:21px;height:21px;fill:#fff}@keyframes advisorPulse{0%{transform:scale(.8);opacity:.85}75%,100%{transform:scale(1.35);opacity:0}}.controls{position:absolute;right:12px;top:12px;display:grid;gap:0;z-index:20;background:#fff;border-radius:14px;box-shadow:0 4px 14px #071b4320;overflow:hidden}.controls button{width:46px;height:46px;border:0;background:#fff;color:#4757B8;font-size:28px;font-weight:400;border-radius:0}.controls button+button{border-top:1px solid #E4E7EE}.attr{position:absolute;right:3px;bottom:2px;padding:2px 4px;background:#ffffffdd;color:#475569;font-size:8px;z-index:10}.info{display:none;position:absolute;left:12px;right:12px;bottom:18px;padding:14px 42px 14px 14px;background:#fff;border:1px solid #dbe4ee;border-radius:16px;box-shadow:0 8px 30px #071b4340;z-index:30}.info b{display:block;color:#172033;font-size:14px;line-height:18px;margin-bottom:5px}.meta{color:#64748b;font-size:11px;line-height:16px}.debt{margin-top:7px;color:#071b43;font-size:12px;font-weight:800}.tag{display:inline-block;margin-top:8px;padding:4px 8px;border-radius:999px;color:#fff;font-size:10px;font-weight:800}.go{display:inline-flex;align-items:center;gap:5px;margin-top:10px;margin-left:8px;padding:7px 12px;border-radius:10px;border:0;background:#1236c7;color:#fff;font-size:11px;font-weight:800}.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}.chip{display:inline-block;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:800}.clu{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px #071b4360;color:#fff;font-weight:800;font-size:13px}.ghost{background:#eef2ff!important;color:#1236c7!important}.close{position:absolute;right:8px;top:8px;width:30px;height:30px;border:0;border-radius:10px;background:#f1f5f9;color:#475569;font-size:20px}.loading{position:absolute;left:12px;top:12px;background:#ffffffee;border-radius:12px;padding:8px 10px;color:#475569;font-size:11px;font-weight:700;z-index:9}
 </style></head><body><div id="map"><div id="tiles"></div><svg id="lines"></svg><div id="marks"></div><div class="controls"><button id="zin">+</button><button id="zout">−</button></div><div id="loading" class="loading">Cargando mapa...</div><div id="info" class="info"></div><div class="attr">© OpenStreetMap</div></div><script>
 let points=${safePoints};const tileHost='https://tile.openstreetmap.org';const tileSize=256;let zoom=points.length?14:11;let center=points.length?fitCenter(points):{lat:-12.0464,lng:-77.0428};let dragging=false,last=null,pinchStart=null,shiftX=0,shiftY=0,zoomTimer=0,tapMark=null,tapStart=null,draggingAdvisor=false,advisorEl=null;const tiles=document.getElementById('tiles'),lines=document.getElementById('lines'),marks=document.getElementById('marks'),info=document.getElementById('info'),loading=document.getElementById('loading');
 function clamp(v,min,max){return Math.max(min,Math.min(max,v))}function scale(z){return tileSize*Math.pow(2,z)}function project(lat,lng,z=zoom){const s=scale(z),sin=Math.sin(lat*Math.PI/180),x=(lng+180)/360*s,y=(0.5-Math.log((1+sin)/(1-sin))/(4*Math.PI))*s;return{x,y}}function unproject(x,y,z=zoom){const s=scale(z),lng=x/s*360-180,n=Math.PI-2*Math.PI*y/s,lat=180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n)));return{lat,lng}}function fitCenter(list){const lat=list.reduce((a,p)=>a+p.lat,0)/list.length,lng=list.reduce((a,p)=>a+p.lng,0)/list.length;return{lat,lng}}function viewport(){return{w:window.innerWidth,h:window.innerHeight}}function centerPx(){return project(center.lat,center.lng)}function screenFromLatLng(lat,lng){const p=project(lat,lng),c=centerPx(),v=viewport();return{x:p.x-c.x+v.w/2,y:p.y-c.y+v.h/2}}function latLngFromScreen(sx,sy){const c=centerPx(),v=viewport();return unproject(sx-v.w/2+c.x,sy-v.h/2+c.y)}function setCenterFromScreenDelta(dx,dy){const c=centerPx();center=unproject(c.x-dx,c.y-dy)}
@@ -188,6 +190,12 @@ export default function MapScreen({ refreshRevision = 0, currentLocation }: { re
     return { casos: casos.length, siguiente, rutaM, lejanos };
   }, [puntosConDistrito, currentLocation]);
   const disponibleCount = puntosConDistrito.length - enRutaCount;
+  const casosCarrusel = useMemo<CasoCarrusel[]>(() => ordenarPorCercania(currentLocation, puntosConDistrito.filter((p) => !p.disponible)).map((p) => ({
+    id: p.id, nombres: p.nombres, codigo: p.codigo, direccion: p.direccion, departamento: p.departamento, distrito: p.distrito,
+    tipo: p.estado, prioridad: p.prioridad, estadoTexto: p.estadoAsignacion ? estadoDeCaso(p.estadoAsignacion) : undefined, latitud: p.latitud, longitud: p.longitud,
+  })), [puntosConDistrito, currentLocation]);
+  const departamentos = useMemo(() => Array.from(new Set(points.map((p) => conMayusculas(p.departamento)).filter(Boolean))), [points]);
+  const centrarEnCaso = (caso: CasoCarrusel) => { web.current?.injectJavaScript(`window.centerRadar&&window.centerRadar(${caso.latitud},${caso.longitud});true;`); };
   const html = useMemo(() => mapHtml(puntosConDistrito), [puntosConDistrito]);
   const advisorPayload = useMemo(() => currentLocation ? {
     id: "self",
@@ -209,6 +217,7 @@ export default function MapScreen({ refreshRevision = 0, currentLocation }: { re
   // Mientras el pin de inicio está arrastrado a un punto simulado, no lo pisamos con
   // cada actualización real del GPS — solo se sincroniza de nuevo al restablecer.
   const [simulado, setSimulado] = useState(false);
+  const [verFiltros, setVerFiltros] = useState(false);
   useEffect(() => { if (!simulado) syncAdvisor(); }, [syncAdvisor, simulado]);
 
   const load = useCallback(async () => {
@@ -256,46 +265,52 @@ export default function MapScreen({ refreshRevision = 0, currentLocation }: { re
       <View style={[s.header, { paddingTop: Math.max(insets.top + 10, 24) }]}>
         <View style={s.head}>
           <View style={s.headText}>
-            <Text style={s.title}>Mapa de mi muestra</Text>
-            <Text style={s.sub}>{enRutaCount} en ruta{disponibleCount ? ` · ${disponibleCount} disponible(s)` : ""}</Text>
-          </View>
-          <View style={[s.live, error ? s.liveError : null]}>
-            <View style={[s.dot, error ? { backgroundColor: C.red } : null]} />
-            <Text style={[s.liveText, error ? { color: C.red } : null]}>
-              {loading ? "Actualizando" : error ? "Sin conexión" : "En línea"}
+            <View style={s.tituloFila}>
+              <MaterialCommunityIcons name="folder-outline" size={26} color="#000" />
+              <Text style={s.title} accessibilityRole="header">Mapa de mi muestra</Text>
+            </View>
+            <Text style={s.sub}>
+              {puntosConDistrito.length} {puntosConDistrito.length === 1 ? "caso" : "casos"}{departamentos.length === 1 ? ` · Clientes en ${departamentos[0]}` : departamentos.length > 1 ? ` · Clientes en ${departamentos.length} departamentos` : ""}
+              {loading ? " · Actualizando…" : error ? " · Sin conexión" : ""}
             </Text>
           </View>
+          <Pressable onPress={() => setVerFiltros((v) => !v)} accessibilityRole="button" accessibilityLabel="Filtros del mapa" accessibilityState={{ expanded: verFiltros }} style={[s.filtrosBtn, verFiltros && s.filtrosBtnOn]}>
+            <MaterialCommunityIcons name="tune-variant" size={22} color={verFiltros ? "#fff" : N.marca} />
+          </Pressable>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filters}>
-          {filters.map((item) => (
-            <Pressable key={item} onPress={() => setFilter(item)} style={[s.chip, filter === item ? s.chipOn : null]}>
-              <View style={[s.chipDot, { backgroundColor: item === "TODOS" ? "#94A3B8" : colors[item] }]} />
-              <Text style={[s.chipText, filter === item ? s.chipTextOn : null]}>{labels[item]}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-        <GeoFilterBar items={points} onChange={setGeoFiltro} />
-        {points.length ? (
-          <View style={s.resumen}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={s.resumenTitulo}>{resumen.casos} {resumen.casos === 1 ? "caso" : "casos"} en tu muestra</Text>
-              {resumen.siguiente ? (
-                <Text style={s.resumenTexto}>Siguiente: <Text style={s.negrita}>{resumen.siguiente.nombres}</Text> · {fmtDistancia(resumen.siguiente.distancia)}{resumen.rutaM > 0 ? ` · ruta de ${fmtDistancia(resumen.rutaM)}` : ""}</Text>
-              ) : null}
-              {resumen.lejanos > 0 ? <Text style={s.resumenApagado}>{resumen.lejanos} {resumen.lejanos === 1 ? "caso está" : "casos están"} a más de 60 km de ti</Text> : null}
-              {incompleto ? <Text style={s.resumenApagado}>Mostrando {incompleto.cargados} de {incompleto.total} casos: acércate a una zona para verlos todos</Text> : null}
-            </View>
-            <Pressable onPress={verTodo} style={s.verTodo}><Text style={s.verTodoTxt}>Ver todo</Text></Pressable>
+        <View style={[s.filtrosPanel, !verFiltros && { display: "none" }]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filters}>
+              {filters.map((item) => (
+                <Pressable key={item} onPress={() => setFilter(item)} style={[s.chip, filter === item ? s.chipOn : null]}>
+                  <View style={[s.chipDot, { backgroundColor: item === "TODOS" ? "#94A3B8" : colors[item] }]} />
+                  <Text style={[s.chipText, filter === item ? s.chipTextOn : null]}>{labels[item]}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <GeoFilterBar items={points} onChange={setGeoFiltro} />
+            {points.length ? (
+              <View style={s.resumen}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={s.resumenTitulo}>{resumen.casos} {resumen.casos === 1 ? "caso" : "casos"} en tu muestra</Text>
+                  {resumen.siguiente ? (
+                    <Text style={s.resumenTexto}>Siguiente: <Text style={s.negrita}>{resumen.siguiente.nombres}</Text> · {fmtDistancia(resumen.siguiente.distancia)}{resumen.rutaM > 0 ? ` · ruta de ${fmtDistancia(resumen.rutaM)}` : ""}</Text>
+                  ) : null}
+                  {resumen.lejanos > 0 ? <Text style={s.resumenApagado}>{resumen.lejanos} {resumen.lejanos === 1 ? "caso está" : "casos están"} a más de 60 km de ti</Text> : null}
+                  {incompleto ? <Text style={s.resumenApagado}>Mostrando {incompleto.cargados} de {incompleto.total} casos: acércate a una zona para verlos todos</Text> : null}
+                </View>
+                <Pressable onPress={verTodo} style={s.verTodo}><Text style={s.verTodoTxt}>Ver todo</Text></Pressable>
+              </View>
+            ) : null}
+            {simulado ? (
+              <View style={s.simBanner}>
+                <Text style={s.simText}>Ruta simulada desde un punto manual.</Text>
+                <Pressable onPress={() => setSimulado(false)}>
+                  <Text style={s.simReset}>Usar ubicación en vivo</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
-        ) : null}
-        {simulado ? (
-          <View style={s.simBanner}>
-            <Text style={s.simText}>Ruta simulada desde un punto manual.</Text>
-            <Pressable onPress={() => setSimulado(false)}>
-              <Text style={s.simReset}>Usar ubicación en vivo</Text>
-            </Pressable>
-          </View>
-        ) : null}
+        <CarruselCasos casos={casosCarrusel} onCambio={centrarEnCaso} />
       </View>
 
       <WebView
@@ -346,11 +361,15 @@ export default function MapScreen({ refreshRevision = 0, currentLocation }: { re
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#EAF1F8" },
-  header: { backgroundColor: "#fff", paddingHorizontal: 16, paddingBottom: 12, gap: 11, borderBottomWidth: 1, borderBottomColor: C.border, zIndex: 2 },
+  header: { backgroundColor: N.fondo, paddingHorizontal: 16, paddingBottom: 12, gap: 12, zIndex: 2 },
+  tituloFila: { flexDirection: "row", alignItems: "center", gap: 8 },
+  filtrosBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, borderColor: N.borde, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  filtrosBtnOn: { backgroundColor: N.marca, borderColor: N.marca },
+  filtrosPanel: { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: N.borde, padding: 12, gap: 10 },
   head: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
   headText: { flex: 1 },
-  title: { fontSize: 24, fontWeight: "900", color: C.text },
-  sub: { fontSize: 11, color: C.muted, marginTop: 3 },
+  title: { fontFamily: FI.bold, fontSize: 24, lineHeight: 30, color: "#000" },
+  sub: { fontFamily: FI.reg, fontSize: 14, color: N.apagado, marginTop: 2 },
   live: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#EAFBF5", paddingHorizontal: 9, paddingVertical: 6, borderRadius: 14 },
   liveError: { backgroundColor: "#FEE2E2" },
   dot: { width: 6, height: 6, borderRadius: 6, backgroundColor: C.success },
