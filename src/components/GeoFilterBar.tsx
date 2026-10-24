@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import { C } from "../theme";
+import { C, FI } from "../theme";
 
 const TODOS = "TODOS";
 
@@ -101,7 +101,7 @@ export default function GeoFilterBar({ items, onChange }: { items: GeoItem[]; on
 const s = StyleSheet.create({
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   field: { minWidth: 140, flexGrow: 1 },
-  label: { fontSize: 9, fontWeight: "800", color: C.muted, textTransform: "uppercase", marginBottom: 3, marginLeft: 2 },
+  label: { fontSize: 9, fontFamily: FI.semi, color: C.muted, textTransform: "uppercase", marginBottom: 3, marginLeft: 2 },
   pickerWrap: { borderWidth: 1, borderColor: C.border, borderRadius: 10, backgroundColor: "#F8FAFD", overflow: "hidden", justifyContent: "center" },
   picker: { height: 46, color: C.text },
 });

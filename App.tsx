@@ -15,10 +15,9 @@ import {
 } from "react-native-safe-area-context";
 import NetInfo from "@react-native-community/netinfo";
 import { AuthProvider, useAuth } from "./src/AuthContext";
-import { useFonts, InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic } from "@expo-google-fonts/instrument-serif";
-import { Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from "@expo-google-fonts/inter";
-import { LinearGradient } from "expo-linear-gradient";
-import { C, FI, G, N } from "./src/theme";
+import { useFonts, BeVietnamPro_300Light, BeVietnamPro_400Regular, BeVietnamPro_500Medium, BeVietnamPro_600SemiBold } from "@expo-google-fonts/be-vietnam-pro";
+import { Beiruti_300Light, Beiruti_400Regular, Beiruti_600SemiBold } from "@expo-google-fonts/beiruti";
+import { C, FI, N } from "./src/theme";
 import BienvenidaScreen from "./src/screens/BienvenidaScreen";
 import LoginScreen from "./src/screens/LoginScreen";
 import TerminosScreen from "./src/screens/TerminosScreen";
@@ -55,7 +54,7 @@ const tabs: any[] = [
 ];
 function Shell() {
   const { token, user, loading, api, offlineSession } = useAuth();
-  const [fontsLoaded, fontsError] = useFonts({ InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
+  const [fontsLoaded, fontsError] = useFonts({ BeVietnamPro_300Light, BeVietnamPro_400Regular, BeVietnamPro_500Medium, BeVietnamPro_600SemiBold, Beiruti_300Light, Beiruti_400Regular, Beiruti_600SemiBold });
   const [tab, setTab] = useState<Tab>("principal");
   // Al abrir la app sin sesión se ve primero la Bienvenida; «Entrar» lleva al inicio de sesión. Al cerrar sesión vuelve a empezar por ahí.
   const [entrar, setEntrar] = useState(false);
@@ -107,10 +106,10 @@ function Shell() {
   if (loading || (!fontsLoaded && !fontsError))
     return (
       <View style={s.loading}>
-        <LinearGradient colors={[...G.brand]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.loadingMark}>
+        <View style={s.loadingMark}>
           <MaterialCommunityIcons name="map-marker-check" size={34} color="#fff" />
-        </LinearGradient>
-        <ActivityIndicator size="small" color={C.primary} />
+        </View>
+        <ActivityIndicator size="small" color={N.marca} />
         <Text style={s.loadingText}>Preparando la app de auditoría</Text>
       </View>
     );
@@ -118,7 +117,7 @@ function Shell() {
   if (terminos === "cargando")
     return (
       <View style={s.loading}>
-        <ActivityIndicator size="small" color={C.primary} />
+        <ActivityIndicator size="small" color={N.marca} />
         <Text style={s.loadingText}>Comprobando tu acceso</Text>
       </View>
     );
@@ -212,10 +211,10 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 15,
-    backgroundColor: C.bg,
+    backgroundColor: N.fondo,
   },
-  loadingMark: { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 6 },
-  loadingText: { color: C.muted, fontWeight: "600" },
+  loadingMark: { width: 72, height: 72, borderRadius: 22, backgroundColor: N.marca, alignItems: "center", justifyContent: "center", marginBottom: 6 },
+  loadingText: { fontFamily: FI.med, color: N.apagado },
   offline: {
     backgroundColor: C.navy,
     paddingBottom: 7,
@@ -227,7 +226,7 @@ const s = StyleSheet.create({
   },
   locationWarning: { backgroundColor: C.warning, paddingBottom: 7, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7 },
   locationWarningPressed: { opacity: 0.82 },
-  offlineText: { color: "#fff", fontWeight: "800", fontSize: 11 },
+  offlineText: { fontFamily: FI.semi, color: "#fff", fontSize: 11.5 },
   nav: { backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border, flexDirection: "row", paddingTop: 6, shadowColor: "#0E1332", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -3 }, elevation: 8 },
   navItem: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 2, paddingTop: 2, paddingBottom: 4 },
   navItemPressed: { opacity: 0.6 },
