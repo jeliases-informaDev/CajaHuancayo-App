@@ -1,0 +1,30 @@
+# Análisis estático de seguridad del código (SAST) con CodeQL, en cada cambio y una vez por semana. Los hallazgos salen en la pestaña
+# Security > Code scanning del repositorio y como anotaciones en cada solicitud de cambios. Gratis mientras el repositorio sea público;
+# si pasa a privado hace falta GitHub Code Security (de pago) o cambiar esta herramienta por Semgrep.
+name: Analisis estatico (CodeQL)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 9 * * 1' # lunes 09:00 UTC (04:00 Lima)
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:javascript-typescript
