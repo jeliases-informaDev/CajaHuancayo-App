@@ -348,7 +348,7 @@ function FotoTile({ uri, rotulo, hecho, onPress }: { uri: string; rotulo: string
   );
 }
 
-export function PasoEvidencias({ s: st, set, onFoto, signatureKey }: { s: FichaState; set: Set; onFoto: (slot: 1 | 2) => void; signatureKey: number }) {
+export function PasoEvidencias({ s: st, set, onFoto, signatureKey, onFirmando, onLimpiarFirma }: { s: FichaState; set: Set; onFoto: (slot: 1 | 2) => void; signatureKey: number; onFirmando: (v: boolean) => void; onLimpiarFirma: () => void }) {
   const llegoAlCliente = EXIGE_FICHA.includes(st.resultado);
   return (
     <>
@@ -363,7 +363,11 @@ export function PasoEvidencias({ s: st, set, onFoto, signatureKey }: { s: FichaS
         <CampoCard title="Firma del cliente">
           <TextField label="Documento de quien firma" required value={st.firmanteDocumento} onChangeText={(v) => set({ firmanteDocumento: v.replace(/\s/g, "") })} placeholder="DNI" maxLength={20} />
           <View style={{ marginTop: 6 }}>
-            <SignaturePad key={signatureKey} onChange={(v: string) => set({ signature: v })} />
+            <SignaturePad key={signatureKey} onChange={(v: string) => set({ signature: v })} onDrawingChange={onFirmando} />
+          </View>
+          <View style={s.firmaPie}>
+            <Text style={s.firmaAyuda}>{st.signature ? "Firma registrada." : "El cliente firma con el dedo dentro del recuadro."}</Text>
+            {st.signature ? <Pressable onPress={onLimpiarFirma} accessibilityRole="button" hitSlop={8}><Text style={s.firmaBorrar}>Borrar y firmar de nuevo</Text></Pressable> : null}
           </View>
         </CampoCard>
       ) : <Callout tipo="info">Con el resultado «{RESULTADOS.find((r) => r.value === st.resultado)?.label}» no se pide firma del cliente.</Callout>}
@@ -401,6 +405,9 @@ const s = StyleSheet.create({
   addBtn: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, alignSelf: "flex-start", paddingVertical: 6 },
   addText: { fontFamily: FI.semi, fontSize: 15, color: N.marca },
   photoRow: { flexDirection: "row", gap: 12 },
+  firmaPie: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 8 },
+  firmaAyuda: { flex: 1, fontFamily: FI.reg, fontSize: 12.5, lineHeight: 17, color: "#626D88" },
+  firmaBorrar: { fontFamily: FI.semi, fontSize: 13, color: "#4757B8" },
   photoBox: { flex: 1, minHeight: 130, borderRadius: 20, borderWidth: 1, borderColor: N.borde, alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#fff", padding: 10, overflow: "hidden" },
   photoImg: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
   photoOk: { position: "absolute", left: 8, right: 8, bottom: 8, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10 },

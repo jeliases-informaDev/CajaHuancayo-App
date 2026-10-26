@@ -56,6 +56,8 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
   const [cameraSlot, setCameraSlot] = useState<1 | 2 | null>(null);
   const [capturing, setCapturing] = useState(false);
   const [signatureKey, setSignatureKey] = useState(0);
+  // Mientras se dibuja la firma, la pantalla no se desplaza: si el ScrollView se queda con el gesto, el lienzo solo recibe el inicio y la firma sale como una raya.
+  const [firmando, setFirmando] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const insets = useSafeAreaInsets();
   const cameraRef = useRef<CameraView>(null);
@@ -313,7 +315,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.body}>
+        <ScrollView ref={scrollRef} scrollEnabled={!firmando} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={st.body}>
           <View style={st.hoja}>
             <Text style={st.stepTitle} accessibilityRole="header">{actual.titulo}</Text>
             {restaurado ? <Callout tipo="info">Recuperamos el avance que dejaste en esta ficha.</Callout> : null}
@@ -326,7 +328,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
             {actual.id === "cuestionario" ? <PasoCuestionario s={s} set={set} plantilla={plantilla} /> : null}
             {actual.id === "otros" ? <PasoOtros s={s} set={set} plantilla={plantilla} /> : null}
             {actual.id === "cierre" ? <PasoCierre s={s} set={set} plantilla={plantilla} distanciaM={distanciaM} geo={geo} irA={irAPaso} /> : null}
-            {actual.id === "evidencias" ? <PasoEvidencias s={s} set={set} onFoto={tomarFoto} signatureKey={signatureKey} /> : null}
+            {actual.id === "evidencias" ? <PasoEvidencias s={s} set={set} onFoto={tomarFoto} signatureKey={signatureKey} onFirmando={setFirmando} onLimpiarFirma={() => { setSignatureKey((k) => k + 1); set({ signature: "" }); setFirmando(false); }} /> : null}
 
             {error ? <Callout tipo="error">{error}</Callout> : null}
           </View>
