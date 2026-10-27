@@ -1,4 +1,7 @@
-# Auditoría de Visitas — Caja Huancayo (App móvil)
+# GeoMatrix — App móvil
+
+El producto se llama siempre **GeoMatrix**; la app muestra «GeoMatrix · nombre de la empresa» (la empresa sale de la cuenta de quien entra).
+Nació para Caja Huancayo y hoy es una plantilla multiempresa.
 
 Aplicación React Native/Expo para supervisores y auditores de campo. Proyecto
 nuevo e independiente de `App-Afaccop`, construido reusando su mismo stack,

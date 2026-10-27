@@ -44,6 +44,8 @@ export type FichaState = {
   photo: string;
   photo2: string;
   signature: string;
+  // firma del auditor de campo: cierra SU trabajo en la visita y se pide en todos los resultados (también «no ubicado»)
+  signatureAuditor: string;
 };
 
 export const sinConformidad = (): Conformidad => ({ conforme: null, comentario: "" });
@@ -61,7 +63,7 @@ export const estadoInicial = (documento: string): FichaState => ({
   otrosClientes: [], otrosPasivos: "", otrosIngresos: [],
   comentarioAuditor: "",
   firmanteDocumento: documento,
-  photo: "", photo2: "", signature: "",
+  photo: "", photo2: "", signature: "", signatureAuditor: "",
 });
 
 export type GeoConfig = { radio: number; precision: number };

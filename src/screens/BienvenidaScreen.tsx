@@ -27,7 +27,7 @@ export default function BienvenidaScreen({ onEntrar }: { onEntrar: () => void })
         <LinearGradient colors={["#E7EAFA", "#F6F7FD"]} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={{ position: "absolute", left: 0, top: 0, width: ancho, height: 400 * k }} />
         <Image
           source={require("../../assets/bienvenida/equipo.webp")}
-          accessibilityLabel="Un asesor de Caja Huancayo con una clienta, revisando la ficha en la tableta"
+          accessibilityLabel="Un asesor con una clienta, revisando la ficha en la tableta"
           resizeMode="contain"
           style={{ position: "absolute", left: 0, top: 112 * k, width: ancho * 0.9, height: ancho * 0.9 * (998 / 1000) }}
         />

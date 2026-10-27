@@ -22,11 +22,13 @@ const num = (v: any) => (v === null || v === undefined || v === "" || Number.isN
 const ROJO_ANTIFRAUDE = N.rojoFuerte;
 
 // ---------------------------------------------------------------- 1. Verificación
-export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegir, distanciaM, geo, onVerBase, onNoUbicado, onFoto, ficha, set }: {
+export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegir, distanciaM, geo, onVerBase, onNoUbicado, onFoto, ficha, set, firmaAuditor }: {
   expediente: any; plantilla: Plantilla; punto: Punto; puntos: Punto[]; onElegir: (p: Punto) => void; distanciaM: number | null; geo: GeoConfig; onVerBase: () => void; onNoUbicado: () => void;
   onFoto: (slot: 1 | 2) => void;
   /** Estado de la ficha: en Consumo este paso registra cómo se encontró el negocio o centro de trabajo (la ficha del banco lo pide). */
   ficha?: FichaState; set?: Set;
+  /** Control de la firma del auditor de campo (el mismo que usa el último paso). */
+  firmaAuditor?: ControlFirma;
 }) {
   const e = expediente;
   const c = e.datos_cliente || {};
@@ -38,11 +40,12 @@ export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegi
   const negocio = alNegocio ? (n.negocios || [])[punto.indice] || {} : null;
   const telefono = alNegocio ? negocio.telefono || e.telefono_cliente || c.telefono_celular : e.telefono_cliente || c.telefono_celular || c.telefono_fijo;
   const [faltante, setFaltante] = React.useState("");
-  // «No ubicado» se registra aquí mismo: comentario (mínimo 10 caracteres) y foto del lugar; el resto de la ficha no se pide.
+  // «No ubicado» se registra aquí mismo: comentario (mínimo 10 caracteres), foto del lugar y la firma del auditor; el resto de la ficha no se pide.
   const registrarNoUbicado = () => {
     const comentario = (ficha?.comentarioAuditor || "").trim();
     if (comentario.length < 10) { setFaltante("Escribe un comentario de al menos 10 caracteres sobre lo que encontraste."); return; }
     if (!ficha?.photo) { setFaltante("Toma la foto del lugar."); return; }
+    if (!ficha?.signatureAuditor) { setFaltante("Firma como auditor de campo para cerrar tu trabajo."); return; }
     setFaltante("");
     onNoUbicado();
   };
@@ -119,7 +122,7 @@ export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegi
 
       <View style={s.noEncontrado}>
         <Text style={s.noTitle} accessibilityRole="header">¿No encontraste al cliente?</Text>
-        <Text style={s.noTexto}>Registra la visita como no ubicado. Solo necesitas un comentario y la foto del lugar.</Text>
+        <Text style={s.noTexto}>Registra la visita como no ubicado. Solo necesitas un comentario, la foto del lugar y tu firma.</Text>
         {ficha && set ? (
           <>
             <TextField label="Comentario" value={ficha.comentarioAuditor} onChangeText={(v) => set({ comentarioAuditor: v })} placeholder="Escribe un comentario breve" />
@@ -130,6 +133,12 @@ export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegi
                 <Text style={s.fotoLugarTexto}>{ficha.photo ? "Foto principal ✓ (toca para repetir)" : "Agrega una foto del lugar"}</Text>
               </Pressable>
             </View>
+            {firmaAuditor ? (
+              <View style={s.field}>
+                <Text style={s.noLabel}>Tu firma como auditor de campo</Text>
+                <FirmaAuditor firma={ficha.signatureAuditor} set={set} control={firmaAuditor} ayuda="Firma con el dedo dentro del recuadro." />
+              </View>
+            ) : null}
           </>
         ) : null}
         {faltante ? <Callout tipo="error">{faltante}</Callout> : null}
@@ -299,7 +308,7 @@ export function PasoOtros({ s: st, set }: { s: FichaState; set: Set; plantilla: 
 // ---------------------------------------------------------------- 6. Cierre
 export function PasoCierre({ s: st, set, plantilla, distanciaM, geo, irA }: { s: FichaState; set: Set; plantilla: Plantilla; distanciaM: number | null; geo: GeoConfig; irA: (id: StepId) => void }) {
   const motivos = bloqueosConforme(st, plantilla, distanciaM, geo.radio);
-  const problema = validarEnvio({ ...st, photo: st.photo || "x", signature: st.signature || "x", firmanteDocumento: st.firmanteDocumento || "00000000" }, plantilla, distanciaM, geo.radio);
+  const problema = validarEnvio({ ...st, photo: st.photo || "x", signature: st.signature || "x", signatureAuditor: st.signatureAuditor || "x", firmanteDocumento: st.firmanteDocumento || "00000000" }, plantilla, distanciaM, geo.radio);
   const elegir = (valor: string) => {
     if (valor === "CONFORME" && motivos.length) return; // el aviso explica por qué
     set({ resultado: valor });
@@ -326,7 +335,7 @@ export function PasoCierre({ s: st, set, plantilla, distanciaM, geo, irA }: { s:
         <Pressable onPress={() => irA(problema.paso)}>
           <Callout tipo="error">Falta completar: {problema.mensaje} Toca aquí para ir a ese paso.</Callout>
         </Pressable>
-      ) : <Callout tipo="ok">La ficha está completa. Falta solo la foto y la firma en el último paso.</Callout>}
+      ) : <Callout tipo="ok">La ficha está completa. Faltan solo la foto y las firmas en el último paso.</Callout>}
     </>
   );
 }
@@ -348,7 +357,30 @@ function FotoTile({ uri, rotulo, hecho, onPress }: { uri: string; rotulo: string
   );
 }
 
-export function PasoEvidencias({ s: st, set, onFoto, signatureKey, onFirmando, onLimpiarFirma }: { s: FichaState; set: Set; onFoto: (slot: 1 | 2) => void; signatureKey: number; onFirmando: (v: boolean) => void; onLimpiarFirma: () => void }) {
+// Firma del auditor de campo. Mientras se firma se muestra el recuadro (la firma puede llevar varios trazos); si ya había una guardada al entrar
+// (firmó antes desde «No ubicado» o se recuperó un borrador) se muestra esa firma, con la opción de borrarla y firmar de nuevo.
+export type ControlFirma = { clave: number; onFirmando: (v: boolean) => void; onLimpiar: () => void };
+function FirmaAuditor({ firma, set, control, ayuda }: { firma: string; set: Set; control: ControlFirma; ayuda: string }) {
+  const [alEntrar] = React.useState(firma);
+  const guardada = Boolean(firma) && firma === alEntrar;
+  return (
+    <>
+      {guardada ? (
+        <View style={s.firmaGuardada}><Image source={{ uri: firma }} style={s.firmaImg} resizeMode="contain" accessibilityLabel="Tu firma como auditor de campo" /></View>
+      ) : (
+        <View style={{ marginTop: 6 }}>
+          <SignaturePad key={control.clave} onChange={(v: string) => set({ signatureAuditor: v })} onDrawingChange={control.onFirmando} />
+        </View>
+      )}
+      <View style={s.firmaPie}>
+        <Text style={s.firmaAyuda}>{firma ? "Firma registrada." : ayuda}</Text>
+        {firma ? <Pressable onPress={control.onLimpiar} accessibilityRole="button" hitSlop={8}><Text style={s.firmaBorrar}>Borrar y firmar de nuevo</Text></Pressable> : null}
+      </View>
+    </>
+  );
+}
+
+export function PasoEvidencias({ s: st, set, onFoto, signatureKey, onFirmando, onLimpiarFirma, firmaAuditor }: { s: FichaState; set: Set; onFoto: (slot: 1 | 2) => void; signatureKey: number; onFirmando: (v: boolean) => void; onLimpiarFirma: () => void; firmaAuditor: ControlFirma }) {
   const llegoAlCliente = EXIGE_FICHA.includes(st.resultado);
   return (
     <>
@@ -371,6 +403,10 @@ export function PasoEvidencias({ s: st, set, onFoto, signatureKey, onFirmando, o
           </View>
         </CampoCard>
       ) : <Callout tipo="info">Con el resultado «{RESULTADOS.find((r) => r.value === st.resultado)?.label}» no se pide firma del cliente.</Callout>}
+
+      <CampoCard title="Tu firma como auditor de campo" hint="Con tu firma cierras tu trabajo en esta visita. Se pide en todos los resultados.">
+        <FirmaAuditor firma={st.signatureAuditor} set={set} control={firmaAuditor} ayuda="Firma con el dedo dentro del recuadro." />
+      </CampoCard>
     </>
   );
 }
@@ -408,6 +444,8 @@ const s = StyleSheet.create({
   firmaPie: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 8 },
   firmaAyuda: { flex: 1, fontFamily: FI.reg, fontSize: 12.5, lineHeight: 17, color: "#626D88" },
   firmaBorrar: { fontFamily: FI.semi, fontSize: 13, color: "#4757B8" },
+  firmaGuardada: { height: 170, marginTop: 6, borderWidth: 1, borderColor: "#DEE2EF", borderRadius: 12, overflow: "hidden", backgroundColor: "#F8F9FD", alignItems: "center", justifyContent: "center" },
+  firmaImg: { width: "100%", height: "100%" },
   photoBox: { flex: 1, minHeight: 130, borderRadius: 20, borderWidth: 1, borderColor: N.borde, alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#fff", padding: 10, overflow: "hidden" },
   photoImg: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
   photoOk: { position: "absolute", left: 8, right: 8, bottom: 8, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10 },
