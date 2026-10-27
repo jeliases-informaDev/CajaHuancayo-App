@@ -5,6 +5,7 @@ import * as Location from "expo-location";
 import { useCameraPermissions } from "expo-camera";
 import { useAuth } from "../AuthContext";
 import { nombreDeEmpresa, useEmpresa } from "../empresa";
+import { version as VERSION_APP } from "../../package.json";
 import { Screen } from "../ui";
 import { FI, initials, N } from "../theme";
 import { cacheGet, cacheSet, discardRejectedVisit, lastSyncError, pendingVisitCount, rejectedVisits, syncPendingVisits, type RejectedVisit } from "../offlineSync";
@@ -188,7 +189,7 @@ export default function MoreScreen() {
       <MaterialCommunityIcons name="logout" size={22} color={N.marca} />
       <Text style={s.botonTexto}>Cerrar sesión</Text>
     </Pressable>
-    <Text style={s.version}>Auditoría de Visitas · {nombreDeEmpresa(empresa) || "Sulotec"}{"\n"}Versión 0.1.0</Text>
+    <Text style={s.version}>GeoMatrix · {nombreDeEmpresa(empresa) || "Sulotec"}{"\n"}Versión {VERSION_APP}</Text>
   </Screen>;
 }
 

@@ -34,6 +34,8 @@ export type QueuedVisitInput = {
   otrosClientesDomicilio: unknown[];
   otrosIngresos: unknown[];
   firma: string;
+  firmaAuditor?: string; // firma del auditor de campo (ficha 2 o mayor)
+  fichaVersion?: number; // versión de la ficha con la que se llenó; las visitas guardadas por apps anteriores no la tienen y no se les exige la firma
   photo1Uri: string;
   photo2Uri: string;
   latitude: number;
@@ -250,6 +252,8 @@ async function synchronize(tokenOverride?: string | null): Promise<SyncResult> {
             otros_clientes_domicilio: payload.otrosClientesDomicilio?.length ? payload.otrosClientesDomicilio : undefined,
             otros_ingresos: payload.otrosIngresos?.length ? payload.otrosIngresos : undefined,
             firma_evidencia: payload.firma || undefined,
+            firma_auditor: payload.firmaAuditor || undefined,
+            ficha_version: payload.fichaVersion || undefined,
             evidencia_principal_key: photo1Key,
             evidencia_adicional_key: photo2Key || undefined,
           }),
@@ -313,6 +317,8 @@ export async function enqueueVisit(input: QueuedVisitInput) {
     otrosClientesDomicilio: input.otrosClientesDomicilio,
     otrosIngresos: input.otrosIngresos,
     firma: input.firma,
+    firmaAuditor: input.firmaAuditor,
+    fichaVersion: input.fichaVersion,
     latitude: input.latitude,
     longitude: input.longitude,
     precisionMeters: input.precisionMeters,

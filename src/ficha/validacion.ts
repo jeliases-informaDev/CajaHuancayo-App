@@ -36,7 +36,7 @@ export function pasoCompleto(id: StepId, s: FichaState, plantilla: Plantilla): b
     case "cuestionario": return cuestionarioBasico(s);
     case "otros": return true;
     case "cierre": return s.resultado === "CONFORME" || s.comentarioAuditor.trim().length >= 10;
-    case "evidencias": return Boolean(s.photo) && (!EXIGE_FICHA.includes(s.resultado) || Boolean(s.signature));
+    case "evidencias": return Boolean(s.photo) && Boolean(s.signatureAuditor) && (!EXIGE_FICHA.includes(s.resultado) || Boolean(s.signature));
     default: return plantilla === "MYPE_V1";
   }
 }
@@ -67,5 +67,7 @@ export function validarEnvio(s: FichaState, plantilla: Plantilla, distanciaM: nu
     if (!/^[A-Za-z0-9]{6,20}$/.test(s.firmanteDocumento.trim())) return { paso: "evidencias", mensaje: "Escribe el documento de quien firma (6 a 20 caracteres, sin espacios)." };
     if (!s.signature) return { paso: "evidencias", mensaje: "Solicita la firma del cliente antes de guardar." };
   }
+  // La firma del auditor de campo cierra su trabajo: va siempre, también cuando no ubicó al cliente.
+  if (!s.signatureAuditor) return { paso: "evidencias", mensaje: "Firma como auditor de campo para cerrar tu trabajo en esta visita." };
   return null;
 }

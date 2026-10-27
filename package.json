@@ -1,6 +1,6 @@
 {
   "name": "caja_huancayo_auditoria_app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/be-vietnam-pro": "^0.4.1",
@@ -25,6 +25,7 @@
     "expo-location": "~57.0.19",
     "expo-screen-capture": "~57.0.3",
     "expo-secure-store": "~57.0.4",
+    "expo-splash-screen": "~57.0.10",
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
     "expo-task-manager": "~57.0.19",

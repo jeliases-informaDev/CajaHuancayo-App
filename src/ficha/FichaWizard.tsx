@@ -21,6 +21,8 @@ import { puntoElegido, puntosDe, tieneCoordenadas } from "./destino";
 import { distanciaTexto, pasoCompleto, validarEnvio } from "./validacion";
 
 const DRAFT_KEY = (idExpediente: number) => `draft_v2_${idExpediente}`;
+// Versión de la ficha que llena esta app (ver el servidor: FICHA_CON_FIRMA_AUDITOR). 2 = lleva la firma del auditor de campo.
+const FICHA_VERSION = 2;
 
 function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371000;
@@ -56,6 +58,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
   const [cameraSlot, setCameraSlot] = useState<1 | 2 | null>(null);
   const [capturing, setCapturing] = useState(false);
   const [signatureKey, setSignatureKey] = useState(0);
+  const [signatureAuditorKey, setSignatureAuditorKey] = useState(0);
   // Mientras se dibuja la firma, la pantalla no se desplaza: si el ScrollView se queda con el gesto, el lienzo solo recibe el inicio y la firma sale como una raya.
   const [firmando, setFirmando] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -180,6 +183,12 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
     );
   };
   const registrarNoUbicado = () => confirmarEnvio({ ...s, resultado: "NO_UBICADO" });
+  // Firma del auditor de campo: la usan el recuadro de «No ubicado» (primer paso) y el último paso; los dos guardan en signatureAuditor.
+  const firmaAuditor = useMemo(() => ({
+    clave: signatureAuditorKey,
+    onFirmando: setFirmando,
+    onLimpiar: () => { setSignatureAuditorKey((k) => k + 1); set({ signatureAuditor: "" }); setFirmando(false); },
+  }), [signatureAuditorKey, set]);
 
   const guardar = async (ficha: FichaState = s) => {
     const s = ficha; // todo lo que sigue lee del estado con el que se confirmó el envío
@@ -248,6 +257,8 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
           .map((x) => ({ origen: x.origen.trim() || undefined, monto_mensual: x.monto ? Number(x.monto) : undefined })),
         firmanteDocumento: llegoAlCliente ? s.firmanteDocumento.trim() : "",
         firma: llegoAlCliente ? s.signature : "",
+        firmaAuditor: s.signatureAuditor,
+        fichaVersion: FICHA_VERSION, // 2 = esta ficha pide la firma del auditor: el servidor la exige a las apps que lo declaran
         photo1Uri: s.photo,
         photo2Uri: s.photo2,
         latitude: fix.latitude,
@@ -321,14 +332,14 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
             {restaurado ? <Callout tipo="info">Recuperamos el avance que dejaste en esta ficha.</Callout> : null}
 
             {actual.id === "verificacion" ? (
-              <PasoVerificacion expediente={expediente} plantilla={plantilla} punto={punto} puntos={puntos} onElegir={(p) => set({ destino: p.tipo, indiceNegocio: p.indice })} distanciaM={distanciaM} geo={geo} onVerBase={() => setVerBase("cliente")} onNoUbicado={registrarNoUbicado} onFoto={tomarFoto} ficha={s} set={set} />
+              <PasoVerificacion expediente={expediente} plantilla={plantilla} punto={punto} puntos={puntos} onElegir={(p) => set({ destino: p.tipo, indiceNegocio: p.indice })} distanciaM={distanciaM} geo={geo} onVerBase={() => setVerBase("cliente")} onNoUbicado={registrarNoUbicado} onFoto={tomarFoto} ficha={s} set={set} firmaAuditor={firmaAuditor} />
             ) : null}
             {actual.id === "negocio" ? <PasoNegocio s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("negocio")} /> : null}
             {actual.id === "evaluacion" ? <PasoEvaluacion s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("evaluacion")} /> : null}
             {actual.id === "cuestionario" ? <PasoCuestionario s={s} set={set} plantilla={plantilla} /> : null}
             {actual.id === "otros" ? <PasoOtros s={s} set={set} plantilla={plantilla} /> : null}
             {actual.id === "cierre" ? <PasoCierre s={s} set={set} plantilla={plantilla} distanciaM={distanciaM} geo={geo} irA={irAPaso} /> : null}
-            {actual.id === "evidencias" ? <PasoEvidencias s={s} set={set} onFoto={tomarFoto} signatureKey={signatureKey} onFirmando={setFirmando} onLimpiarFirma={() => { setSignatureKey((k) => k + 1); set({ signature: "" }); setFirmando(false); }} /> : null}
+            {actual.id === "evidencias" ? <PasoEvidencias s={s} set={set} onFoto={tomarFoto} signatureKey={signatureKey} onFirmando={setFirmando} onLimpiarFirma={() => { setSignatureKey((k) => k + 1); set({ signature: "" }); setFirmando(false); }} firmaAuditor={firmaAuditor} /> : null}
 
             {error ? <Callout tipo="error">{error}</Callout> : null}
           </View>
