@@ -33,6 +33,7 @@ export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegi
   const e = expediente;
   const c = e.datos_cliente || {};
   const cr = e.datos_credito || {};
+  const saldo = cr.saldo_capital ?? (e.moneda === "USD" ? null : cr.saldo_capital_soles);
   const n = e.datos_negocio || {};
   const tieneCoord = tieneCoordenadas(punto);
   const alNegocio = punto.tipo === "NEGOCIO";
@@ -113,7 +114,8 @@ export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegi
 
       <BaseCard title="Resumen del crédito">
         <ReadRow label="Monto desembolsado" value={e.monto_desembolso ? money(e.monto_desembolso) : "-"} />
-        <ReadRow label="Saldo del capital" value={cr.saldo_capital != null ? num(cr.saldo_capital) : "-"} />
+        {/* La base de Consumo solo trae el saldo en soles: en un crédito en soles ese es el saldo de capital. */}
+        <ReadRow label="Saldo del capital" value={saldo != null ? num(saldo) : "-"} />
         <ReadRow label="Estado" value={cr.estado} />
         <ReadRow label="Destino" value={cr.destino} />
         <ReadRow label="Asesor responsable" value={nombreDePersona(e.asesor_responsable)} />
