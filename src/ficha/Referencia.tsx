@@ -52,10 +52,12 @@ function codigosCore(cr: any, cliente: any) {
   return items.length ? items.join(" · ") : undefined;
 }
 
-function Credito({ e }: { e: any }) {
+function Credito({ e, mype }: { e: any; mype: boolean }) {
   const cr = e.datos_credito || {};
   const apr = cr.nivel_aprobador || {};
   const h: any[] = cr.historial || [];
+  // La base de Consumo solo trae el saldo en soles: en un crédito en soles ese es el saldo de capital.
+  const saldo = cr.saldo_capital ?? (e.moneda === "USD" ? null : cr.saldo_capital_soles);
   return (
     <>
       <BaseCard title="Crédito y participantes">
@@ -65,7 +67,7 @@ function Credito({ e }: { e: any }) {
         <ReadRow label="Línea / solicitud" value={[cr.linea_credito, cr.solicitud].filter(Boolean).join(" / ")} />
         <ReadRow label="Desembolso" value={`${e.moneda === "USD" ? "US$" : "S/"} ${num(e.monto_desembolso)} · ${fecha(cr.fecha_desembolso)}`} />
         {e.moneda === "USD" ? <ReadRow label="Desembolso en soles / T.C." value={`S/ ${num(cr.monto_desembolsado_soles)} · ${num(cr.tipo_cambio)}`} /> : null}
-        <ReadRow label="Saldo de capital" value={num(cr.saldo_capital) + (e.moneda === "USD" && cr.saldo_capital_soles != null ? ` (S/ ${num(cr.saldo_capital_soles)})` : "")} />
+        <ReadRow label="Saldo de capital" value={num(saldo) + (e.moneda === "USD" && cr.saldo_capital_soles != null ? ` (S/ ${num(cr.saldo_capital_soles)})` : "")} />
         <ReadRow label="Días de gracia" value={cr.dias_gracia} />
         <ReadRow label="Cuota" value={`${num(cr.monto_cuota)} · ${cr.plazo_cuotas ?? "-"} cuotas`} />
         <ReadRow label="Destino" value={cr.destino} />
@@ -90,6 +92,7 @@ function Credito({ e }: { e: any }) {
             <ReadRow label="Plazo / cuota" value={`${x.plazo_cuotas ?? "-"} cuotas · ${num(x.cuota)}`} />
             <ReadRow label="Condición" value={x.condicion} />
             <ReadRow label="Saldo" value={num(x.saldo)} />
+            {mype ? null : <ReadRow label="Asesor" value={x.asesor} />}
             <ReadRow label="Cuota más atrasada" value={x.cuota_mas_atrasada} />
           </View>
         )) : <Text style={s.vacio}>La base no trae historial.</Text>}
@@ -98,23 +101,25 @@ function Credito({ e }: { e: any }) {
   );
 }
 
-function Negocio({ e }: { e: any }) {
+// En Consumo la base trae los datos laborales del cliente (empleador, su dirección, antigüedad y el documento con que sustenta el ingreso) en los mismos bloques que el negocio de la MYPE.
+function Negocio({ e, mype }: { e: any; mype: boolean }) {
   const n = e.datos_negocio || {};
   const locales: any[] = n.negocios || [];
   return (
     <>
-      <BaseCard title="Negocio">
+      <BaseCard title={mype ? "Negocio" : "Datos laborales"}>
         <ReadRow label="Actividad" value={n.actividad} />
-        <ReadRow label="Antigüedad" value={n.antiguedad_meses != null ? `${n.antiguedad_meses} meses` : n.antiguedad_texto} />
-        <ReadRow label="Sector económico" value={n.sector_economico} />
+        <ReadRow label="Antigüedad" value={!mype && n.antiguedad_texto ? n.antiguedad_texto : n.antiguedad_meses != null ? `${n.antiguedad_meses} meses` : n.antiguedad_texto} />
+        {mype ? <ReadRow label="Sector económico" value={n.sector_economico} /> : <ReadRow label="Documento de ingreso" value={n.sustento_ingreso} />}
       </BaseCard>
       {locales.map((x, i) => (
-        <BaseCard key={i} title={`Local ${locales.length > 1 ? i + 1 : ""}`.trim()}>
+        <BaseCard key={i} title={`${mype ? "Local" : "Empleador"} ${locales.length > 1 ? i + 1 : ""}`.trim()}>
+          {mype ? null : <ReadRow label="Empleador" value={x.contacto} />}
           <ReadRow label="Dirección" value={x.direccion} />
           <ReadRow label="Distrito / dpto." value={[x.distrito, x.departamento].filter(Boolean).join(" / ")} />
           <ReadRow label="Referencia" value={x.referencia} />
           <ReadRow label="Teléfono" value={x.telefono} />
-          <ReadRow label="Contacto" value={x.contacto} />
+          {mype ? <ReadRow label="Contacto" value={x.contacto} /> : null}
         </BaseCard>
       ))}
     </>
@@ -126,7 +131,8 @@ const periodos = (re: any, an: any) => `Reeval. ${re ? [re.numero_evaluacion, fe
 
 function Evaluacion({ e, mype }: { e: any; mype: boolean }) {
   const ev = e.evaluacion_financiera || {};
-  const ingresos: any[] = ev.ingresos || [];
+  // En Consumo los ingresos llegan como líneas propias (ingresos_consumo); `ingresos` queda para los del negocio (MYPE) y los datos de demostración.
+  const ingresos: any[] = (mype ? ev.ingresos : ev.ingresos_consumo?.length ? ev.ingresos_consumo : ev.ingresos) || [];
   const re = ev.reevaluacion;
   const an = ev.anterior;
   const Fila = ({ etiqueta, bloque, clave }: { etiqueta: string; bloque: "balance" | "resultados"; clave: string }) => (
@@ -157,7 +163,7 @@ function Evaluacion({ e, mype }: { e: any; mype: boolean }) {
             ) : (
               <>
                 <ReadRow label="Relación" value={l.relacion} />
-                <ReadRow label="Monto" value={`${l.moneda || ""} ${l.monto ?? "-"}`} />
+                <ReadRow label="Monto" value={`${l.moneda || ""} ${num(l.monto)}`.trim()} />
                 <ReadRow label="Tipo de ingreso" value={l.tipo_ingreso} />
               </>
             )}
@@ -231,7 +237,7 @@ export default function Referencia({ visible, onClose, expediente, plantilla, in
   const mype = plantilla === "MYPE_V1";
   const tabs: { id: TabRef; label: string }[] = [
     { id: "cliente", label: "Cliente" }, { id: "credito", label: "Crédito" },
-    ...(mype ? [{ id: "negocio" as TabRef, label: "Negocio" }] : []),
+    { id: "negocio", label: mype ? "Negocio" : "Laboral" },
     { id: "evaluacion", label: mype ? "Evaluación" : "Ingresos" }, { id: "deuda", label: "Deudas" },
   ];
   const [tab, setTab] = useState<TabRef>(inicial);
@@ -255,8 +261,8 @@ export default function Referencia({ visible, onClose, expediente, plantilla, in
         </ScrollView>
         <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
           {tab === "cliente" ? <Cliente e={expediente} /> : null}
-          {tab === "credito" ? <Credito e={expediente} /> : null}
-          {tab === "negocio" ? <Negocio e={expediente} /> : null}
+          {tab === "credito" ? <Credito e={expediente} mype={mype} /> : null}
+          {tab === "negocio" ? <Negocio e={expediente} mype={mype} /> : null}
           {tab === "evaluacion" ? <Evaluacion e={expediente} mype={mype} /> : null}
           {tab === "deuda" ? <Deuda e={expediente} /> : null}
         </ScrollView>
