@@ -21,6 +21,7 @@ export type FichaState = {
   pagoComision: YesNo;
   recibioMontoTotal: YesNo;
   conyugeConoce: YesNo;
+  conyugeNoAplica: boolean; // Consumo: la ficha del banco ofrece «No aplica»
   creditosParalelos: YesNo;
   comparteDinero: YesNo;
   titularAdministra: YesNo;
@@ -54,7 +55,7 @@ export const estadoInicial = (documento: string): FichaState => ({
   resultado: "CONFORME",
   destino: "DOMICILIO", indiceNegocio: 0,
   entregoDinero: null, pagoComision: null, recibioMontoTotal: null,
-  conyugeConoce: null, creditosParalelos: null, comparteDinero: null, titularAdministra: null,
+  conyugeConoce: null, conyugeNoAplica: false, creditosParalelos: null, comparteDinero: null, titularAdministra: null,
   tieneMicroseguro: null, infoMicroseguro: null, conformeMicroseguro: null, comentarioMicroseguro: "",
   dondePaga: "",
   estadoNegocio: "", propiedadLocal: "",
@@ -66,4 +67,5 @@ export const estadoInicial = (documento: string): FichaState => ({
   photo: "", photo2: "", signature: "", signatureAuditor: "",
 });
 
-export type GeoConfig = { radio: number; precision: number };
+// zonaRadio: sin referencia todavía, cuánto puede alejarse la primera visita de la zona conocida (sugerencia del mapa o de visitas vecinas).
+export type GeoConfig = { radio: number; precision: number; zonaRadio?: number };
