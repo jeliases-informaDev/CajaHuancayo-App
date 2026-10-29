@@ -17,7 +17,7 @@ import { Callout } from "./controls";
 import { PasoCierre, PasoCuestionario, PasoEvaluacion, PasoEvidencias, PasoNegocio, PasoOtros, PasoVerificacion } from "./Pasos";
 import Referencia, { TabRef } from "./Referencia";
 import { estadoInicial, FichaState, GeoConfig, StepId } from "./types";
-import { puntoElegido, puntosDe, tieneCoordenadas } from "./destino";
+import { puntoElegido, puntosDe, tieneCoordenadas, tieneZona } from "./destino";
 import { distanciaTexto, pasoCompleto, validarEnvio } from "./validacion";
 
 const DRAFT_KEY = (idExpediente: number) => `draft_v2_${idExpediente}`;
@@ -79,6 +79,14 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
     () => (tieneCoord && currentLocation ? distanciaMetros(punto.lat as number, punto.lng as number, currentLocation.latitude, currentLocation.longitude) : null),
     [tieneCoord, currentLocation, punto],
   );
+  // Sin referencia, se mide contra la zona conocida (sugerencia del mapa o de visitas vecinas) con el radio de zona: el servidor avisa igual.
+  const distanciaZonaM = useMemo(
+    () => (!tieneCoord && tieneZona(punto) && currentLocation ? distanciaMetros(punto.zonaLat as number, punto.zonaLng as number, currentLocation.latitude, currentLocation.longitude) : null),
+    [tieneCoord, currentLocation, punto],
+  );
+  const controlZona = !tieneCoord && tieneZona(punto);
+  const distanciaControl = tieneCoord ? distanciaM : distanciaZonaM;
+  const radioControl = tieneCoord ? geo.radio : (geo.zonaRadio ?? 1000);
 
   // La ficha muestra datos del cliente, sus fotos y su firma: sin capturas ni grabación de pantalla.
   useEffect(() => {
@@ -174,7 +182,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
   // ----- envío
   const confirmarEnvio = (ficha: FichaState = s) => {
     setError("");
-    const problema = validarEnvio(ficha, plantilla, distanciaM, geo.radio);
+    const problema = validarEnvio(ficha, plantilla, distanciaControl, radioControl, controlZona);
     if (problema) { setError(problema.mensaje); irAPaso(problema.paso); return; }
     Alert.alert(
       "Revisa antes de enviar",
@@ -219,7 +227,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
       poner("entrego_dinero_asesor", s.entregoDinero);
       poner("pago_comision_adicional", s.pagoComision);
       poner("recibio_monto_total", s.recibioMontoTotal);
-      poner("conyuge_conoce_prestamo", s.conyugeConoce);
+      if (plantilla === "CONSUMO_V1" && s.conyugeNoAplica) respuestas.conyuge_no_aplica = true; else poner("conyuge_conoce_prestamo", s.conyugeConoce);
       poner("creditos_paralelos", s.creditosParalelos);
       poner("comparte_dinero_credito", s.comparteDinero);
       poner("titular_administra_negocio", s.titularAdministra);
@@ -332,13 +340,13 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
             {restaurado ? <Callout tipo="info">Recuperamos el avance que dejaste en esta ficha.</Callout> : null}
 
             {actual.id === "verificacion" ? (
-              <PasoVerificacion expediente={expediente} plantilla={plantilla} punto={punto} puntos={puntos} onElegir={(p) => set({ destino: p.tipo, indiceNegocio: p.indice })} distanciaM={distanciaM} geo={geo} onVerBase={() => setVerBase("cliente")} onNoUbicado={registrarNoUbicado} onFoto={tomarFoto} ficha={s} set={set} firmaAuditor={firmaAuditor} />
+              <PasoVerificacion expediente={expediente} plantilla={plantilla} punto={punto} puntos={puntos} onElegir={(p) => set({ destino: p.tipo, indiceNegocio: p.indice })} distanciaM={distanciaM} distanciaZonaM={distanciaZonaM} geo={geo} onVerBase={() => setVerBase("cliente")} onNoUbicado={registrarNoUbicado} onFoto={tomarFoto} ficha={s} set={set} firmaAuditor={firmaAuditor} />
             ) : null}
             {actual.id === "negocio" ? <PasoNegocio s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("negocio")} /> : null}
             {actual.id === "evaluacion" ? <PasoEvaluacion s={s} set={set} expediente={expediente} onVerBase={() => setVerBase("evaluacion")} /> : null}
             {actual.id === "cuestionario" ? <PasoCuestionario s={s} set={set} plantilla={plantilla} /> : null}
             {actual.id === "otros" ? <PasoOtros s={s} set={set} plantilla={plantilla} /> : null}
-            {actual.id === "cierre" ? <PasoCierre s={s} set={set} plantilla={plantilla} distanciaM={distanciaM} geo={geo} irA={irAPaso} /> : null}
+            {actual.id === "cierre" ? <PasoCierre s={s} set={set} plantilla={plantilla} distanciaM={distanciaControl} geo={{ ...geo, radio: radioControl }} zona={controlZona} irA={irAPaso} /> : null}
             {actual.id === "evidencias" ? <PasoEvidencias s={s} set={set} onFoto={tomarFoto} signatureKey={signatureKey} onFirmando={setFirmando} onLimpiarFirma={() => { setSignatureKey((k) => k + 1); set({ signature: "" }); setFirmando(false); }} firmaAuditor={firmaAuditor} /> : null}
 
             {error ? <Callout tipo="error">{error}</Callout> : null}

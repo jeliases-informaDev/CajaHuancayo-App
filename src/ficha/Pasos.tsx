@@ -3,10 +3,10 @@ import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native"
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { conMayusculas, FI, money, N, nombreDePersona } from "../theme";
 import SignaturePad from "../SignaturePad";
-import { BaseCard, BotonClaro, CampoCard, Callout, Chips, ReadRow, TextField, YesNoRow } from "./controls";
+import { BaseCard, BotonClaro, CampoCard, Callout, Chips, ReadRow, TextField, YesNoNaRow, YesNoRow } from "./controls";
 import { ESTADOS_NEGOCIO, EXIGE_FICHA, PROPIEDADES_LOCAL, RESULTADOS } from "./config";
 import { bloqueosConforme, distanciaTexto, validarEnvio } from "./validacion";
-import { abrirRuta, tieneCoordenadas } from "./destino";
+import { abrirRuta, tieneCoordenadas, tieneZona } from "./destino";
 import type { Punto } from "./destino";
 import type { Conformidad, FichaState, GeoConfig, OtroCliente, OtroIngreso, Plantilla, StepId } from "./types";
 
@@ -16,14 +16,24 @@ const ORIGEN_UBICACION: Record<string, string> = {
   REFERENCIA: "Coordenadas de la base",
   MANUAL: "Fijada por un supervisor",
   PRIMERA_VISITA: "Tomada en una primera visita",
+  MANZANA_VECINA: "Por manzana vecina (visitas anteriores)",
+  GEOCODIFICADA: "Ubicada por el mapa",
+};
+// Qué tan buena es la ubicación aproximada que se conoce cuando aún no hay referencia.
+const ZONA_TEXTO: Record<string, string> = {
+  MANZANA: "Manzana conocida por visitas anteriores",
+  ZONA: "Zona conocida por visitas anteriores",
+  DISTRITO: "Zona encontrada en el mapa",
+  APROXIMADA: "Calle encontrada en el mapa (aproximada)",
+  EXACTA: "Punto encontrado en el mapa",
 };
 
 const num = (v: any) => (v === null || v === undefined || v === "" || Number.isNaN(Number(v)) ? "-" : Number(v).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const ROJO_ANTIFRAUDE = N.rojoFuerte;
 
 // ---------------------------------------------------------------- 1. Verificación
-export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegir, distanciaM, geo, onVerBase, onNoUbicado, onFoto, ficha, set, firmaAuditor }: {
-  expediente: any; plantilla: Plantilla; punto: Punto; puntos: Punto[]; onElegir: (p: Punto) => void; distanciaM: number | null; geo: GeoConfig; onVerBase: () => void; onNoUbicado: () => void;
+export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegir, distanciaM, distanciaZonaM = null, geo, onVerBase, onNoUbicado, onFoto, ficha, set, firmaAuditor }: {
+  expediente: any; plantilla: Plantilla; punto: Punto; puntos: Punto[]; onElegir: (p: Punto) => void; distanciaM: number | null; distanciaZonaM?: number | null; geo: GeoConfig; onVerBase: () => void; onNoUbicado: () => void;
   onFoto: (slot: 1 | 2) => void;
   /** Estado de la ficha: en Consumo este paso registra cómo se encontró el negocio o centro de trabajo (la ficha del banco lo pide). */
   ficha?: FichaState; set?: Set;
@@ -101,7 +111,22 @@ export function PasoVerificacion({ expediente, plantilla, punto, puntos, onElegi
             ) : <Text style={s.mini}>Activa el GPS para ver tu distancia al {lugar}.</Text>}
           </>
         ) : (
-          <Callout tipo="info">La base no trae coordenadas de este {lugar}. Si la visita sale limpia, tu ubicación quedará como referencia (se registra en el historial del expediente).</Callout>
+          tieneZona(punto) ? (
+            <>
+              <ReadRow label="Ubicación aproximada" value={ZONA_TEXTO[punto.zonaPrecision || ""] || "Zona conocida"} />
+              {distanciaZonaM != null ? (
+                <View style={[s.dist, { backgroundColor: distanciaZonaM <= (geo.zonaRadio ?? 1000) ? N.verdeFondo : N.rojoFondo }]}>
+                  <MaterialCommunityIcons name={distanciaZonaM <= (geo.zonaRadio ?? 1000) ? "map-marker-radius-outline" : "map-marker-alert-outline"} size={18} color={distanciaZonaM <= (geo.zonaRadio ?? 1000) ? N.verdeTexto : N.rojoTexto} />
+                  <Text style={[s.distText, { color: distanciaZonaM <= (geo.zonaRadio ?? 1000) ? N.verdeTexto : N.rojoTexto }]}>
+                    Estás a {distanciaTexto(distanciaZonaM)} de la zona conocida {distanciaZonaM <= (geo.zonaRadio ?? 1000) ? "(dentro de la zona)" : `(el máximo es ${geo.zonaRadio ?? 1000} m)`}
+                  </Text>
+                </View>
+              ) : <Text style={s.mini}>Activa el GPS para ver tu distancia a la zona.</Text>}
+              <Callout tipo="info">Es la zona, no la puerta: «Cómo llegar» te lleva hasta ahí. Si la visita sale limpia, tu ubicación quedará como referencia exacta de este {lugar}.</Callout>
+            </>
+          ) : (
+            <Callout tipo="info">La base no trae coordenadas de este {lugar}. Si la visita sale limpia, tu ubicación quedará como referencia (se registra en el historial del expediente).</Callout>
+          )
         )}
       </BaseCard>
 
@@ -235,7 +260,9 @@ export function PasoEvaluacion({ s: st, set, expediente, onVerBase }: { s: Ficha
 }
 
 // ---------------------------------------------------------------- 4. Cuestionario
-export function PasoCuestionario({ s: st, set }: { s: FichaState; set: Set; plantilla: Plantilla }) {
+export function PasoCuestionario({ s: st, set, plantilla }: { s: FichaState; set: Set; plantilla: Plantilla }) {
+  // La ficha de Consumo del banco no trae microseguros y ofrece «No aplica» en la pregunta del cónyuge.
+  const consumo = plantilla === "CONSUMO_V1";
   return (
     <>
       <CampoCard title="Verificación Anti-fraude" acento={ROJO_ANTIFRAUDE} hint="Las 3 preguntas son obligatorias">
@@ -245,23 +272,27 @@ export function PasoCuestionario({ s: st, set }: { s: FichaState; set: Set; plan
       </CampoCard>
 
       <CampoCard title="Crédito y Hogar" acento={N.marino}>
-        <YesNoRow label="¿Cónyuge tiene conocimiento del préstamo?" value={st.conyugeConoce} onChange={(v) => set({ conyugeConoce: v })} />
+        {consumo
+          ? <YesNoNaRow label="¿Cónyuge tiene conocimiento del préstamo?" value={st.conyugeConoce} noAplica={st.conyugeNoAplica} onChange={(v, na) => set({ conyugeConoce: v, conyugeNoAplica: na })} />
+          : <YesNoRow label="¿Cónyuge tiene conocimiento del préstamo?" value={st.conyugeConoce} onChange={(v) => set({ conyugeConoce: v, conyugeNoAplica: false })} />}
         <YesNoRow label="¿Tiene créditos paralelos?" value={st.creditosParalelos} onChange={(v) => set({ creditosParalelos: v })} />
         <YesNoRow label="¿Comparte el dinero del crédito con otra persona?" value={st.comparteDinero} onChange={(v) => set({ comparteDinero: v })} />
         <YesNoRow label="¿El titular administra el negocio?" value={st.titularAdministra} onChange={(v) => set({ titularAdministra: v })} />
         <TextField label="¿Dónde realiza sus pagos?" value={st.dondePaga} onChangeText={(v) => set({ dondePaga: v })} placeholder="Agencia, agente, app, etc." />
       </CampoCard>
 
-      <CampoCard title="Microseguro" acento={N.marino}>
-        <YesNoRow label="¿Tiene microseguro?" value={st.tieneMicroseguro} onChange={(v) => set({ tieneMicroseguro: v, ...(v === false ? { infoMicroseguro: null, conformeMicroseguro: null, comentarioMicroseguro: "" } : {}) })} />
-        {st.tieneMicroseguro === true ? (
-          <>
-            <YesNoRow label="¿Recibió toda la información necesaria antes de comprarlo?" value={st.infoMicroseguro} onChange={(v) => set({ infoMicroseguro: v })} />
-            <YesNoRow label="¿Está conforme con el microseguro comprado?" value={st.conformeMicroseguro} onChange={(v) => set({ conformeMicroseguro: v })} />
-            <TextField label="Comentario" value={st.comentarioMicroseguro} onChangeText={(v) => set({ comentarioMicroseguro: v })} placeholder="Opcional" />
-          </>
-        ) : null}
-      </CampoCard>
+      {consumo ? null : (
+        <CampoCard title="Microseguro" acento={N.marino}>
+          <YesNoRow label="¿Tiene microseguro?" value={st.tieneMicroseguro} onChange={(v) => set({ tieneMicroseguro: v, ...(v === false ? { infoMicroseguro: null, conformeMicroseguro: null, comentarioMicroseguro: "" } : {}) })} />
+          {st.tieneMicroseguro === true ? (
+            <>
+              <YesNoRow label="¿Recibió toda la información necesaria antes de comprarlo?" value={st.infoMicroseguro} onChange={(v) => set({ infoMicroseguro: v })} />
+              <YesNoRow label="¿Está conforme con el microseguro comprado?" value={st.conformeMicroseguro} onChange={(v) => set({ conformeMicroseguro: v })} />
+              <TextField label="Comentario" value={st.comentarioMicroseguro} onChangeText={(v) => set({ comentarioMicroseguro: v })} placeholder="Opcional" />
+            </>
+          ) : null}
+        </CampoCard>
+      )}
     </>
   );
 }
@@ -308,9 +339,9 @@ export function PasoOtros({ s: st, set }: { s: FichaState; set: Set; plantilla: 
 }
 
 // ---------------------------------------------------------------- 6. Cierre
-export function PasoCierre({ s: st, set, plantilla, distanciaM, geo, irA }: { s: FichaState; set: Set; plantilla: Plantilla; distanciaM: number | null; geo: GeoConfig; irA: (id: StepId) => void }) {
-  const motivos = bloqueosConforme(st, plantilla, distanciaM, geo.radio);
-  const problema = validarEnvio({ ...st, photo: st.photo || "x", signature: st.signature || "x", signatureAuditor: st.signatureAuditor || "x", firmanteDocumento: st.firmanteDocumento || "00000000" }, plantilla, distanciaM, geo.radio);
+export function PasoCierre({ s: st, set, plantilla, distanciaM, geo, irA, zona = false }: { s: FichaState; set: Set; plantilla: Plantilla; distanciaM: number | null; geo: GeoConfig; irA: (id: StepId) => void; zona?: boolean }) {
+  const motivos = bloqueosConforme(st, plantilla, distanciaM, geo.radio, zona);
+  const problema = validarEnvio({ ...st, photo: st.photo || "x", signature: st.signature || "x", signatureAuditor: st.signatureAuditor || "x", firmanteDocumento: st.firmanteDocumento || "00000000" }, plantilla, distanciaM, geo.radio, zona);
   const elegir = (valor: string) => {
     if (valor === "CONFORME" && motivos.length) return; // el aviso explica por qué
     set({ resultado: valor });

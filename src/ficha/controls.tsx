@@ -55,6 +55,25 @@ export function YesNoRow({ label, value, onChange, required }: { label: string; 
   );
 }
 
+// Sí / No / No aplica (la ficha de Consumo del banco lo ofrece en la pregunta del cónyuge).
+export function YesNoNaRow({ label, value, noAplica, onChange }: { label: string; value: YesNo; noAplica: boolean; onChange: (v: YesNo, noAplica: boolean) => void }) {
+  const boton = (on: boolean, texto: string, elegir: () => void) => (
+    <Pressable key={texto} accessibilityRole="button" accessibilityLabel={`${label}: ${texto}`} accessibilityState={{ selected: on }} onPress={elegir} style={[s.qBtn, on && s.qBtnOn]}>
+      <Text style={[s.qBtnText, on && s.qBtnTextOn]}>{texto}</Text>
+    </Pressable>
+  );
+  return (
+    <View style={s.qRow}>
+      <Text style={s.qLabel}>{label}</Text>
+      <View style={s.qButtons}>
+        {boton(!noAplica && value === true, "Sí", () => onChange(true, false))}
+        {boton(!noAplica && value === false, "No", () => onChange(false, false))}
+        {boton(noAplica, "No aplica", () => onChange(null, true))}
+      </View>
+    </View>
+  );
+}
+
 // Opciones en filas con círculo (radio): una sola se elige.
 export function Chips({ options, value, onChange, disabled }: { options: { value: string; label: string }[]; value: string; onChange: (v: string) => void; color?: string; disabled?: string[] }) {
   return (

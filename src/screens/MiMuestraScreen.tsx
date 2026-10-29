@@ -22,7 +22,7 @@ const CACHE_KEY_MUESTRA = "mias_v1";
 const CACHE_KEY_GEO = "geo_cfg_v1";
 const CACHE_KEY_AUTO = "autoasignacion_v1";
 // Valores por defecto del servidor; se reemplazan por los reales (GET /api/visitas/config).
-const GEO_DEFAULT = { radio: 100, precision: 100 };
+const GEO_DEFAULT = { radio: 100, precision: 100, zonaRadio: 1000 };
 
 export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilityChange, currentLocation, abrirAsignacion = null }: { refreshRevision?: number; onDetailVisibilityChange?: (open: boolean) => void; currentLocation?: { latitude: number; longitude: number } | null; abrirAsignacion?: any }) {
   const { api } = useAuth();
@@ -123,7 +123,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
     cacheGet<boolean>(CACHE_KEY_AUTO).then((cached) => { if (cached && mounted.current && !autoasignacionFresca.current) { setAutoasignacion(cached.value !== false); if (cached.value === false) setVista("mia"); } });
     api<any>("/api/visitas/config")
       .then((r) => {
-        const next = { radio: Number(r.data?.geocerca_radio_m) || GEO_DEFAULT.radio, precision: Number(r.data?.precision_maxima_m) || GEO_DEFAULT.precision };
+        const next = { radio: Number(r.data?.geocerca_radio_m) || GEO_DEFAULT.radio, precision: Number(r.data?.precision_maxima_m) || GEO_DEFAULT.precision, zonaRadio: Number(r.data?.zona_radio_m) || GEO_DEFAULT.zonaRadio };
         if (mounted.current) setGeoConfig(next);
         if (r.data?.empresa) recordarEmpresa(r.data.empresa);
         cacheSet(CACHE_KEY_GEO, next);

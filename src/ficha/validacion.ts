@@ -18,13 +18,14 @@ const conformidadCompleta = (s: FichaState) =>
   });
 
 // Motivos por los que NO se puede cerrar como CONFORME (aparte de la ubicación, que se mide al guardar).
-export function bloqueosConforme(s: FichaState, plantilla: Plantilla, distanciaM: number | null, radio: number): string[] {
+export function bloqueosConforme(s: FichaState, plantilla: Plantilla, distanciaM: number | null, radio: number, zona = false): string[] {
   const motivos: string[] = [];
   if (plantilla === "MYPE_V1") {
     if (s.estadoNegocio && s.estadoNegocio !== "EN_FUNCIONAMIENTO") motivos.push("el negocio no está en funcionamiento");
     if ((["ingresos", "balance", "resultados"] as const).some((k) => s.conf[k].conforme === false)) motivos.push("hay observaciones en la evaluación financiera");
   }
-  if (distanciaM != null && distanciaM > radio) motivos.push(`estás a ${distanciaTexto(distanciaM)} del ${s.destino === "NEGOCIO" ? "negocio" : "domicilio"} (máximo ${radio} m)`);
+  const lugar = s.destino === "NEGOCIO" ? "negocio" : "domicilio";
+  if (distanciaM != null && distanciaM > radio) motivos.push(zona ? `estás a ${distanciaTexto(distanciaM)} de la zona conocida de este ${lugar} (máximo ${radio} m)` : `estás a ${distanciaTexto(distanciaM)} del ${lugar} (máximo ${radio} m)`);
   return motivos;
 }
 
@@ -42,7 +43,7 @@ export function pasoCompleto(id: StepId, s: FichaState, plantilla: Plantilla): b
 }
 
 // Primer problema que impide enviar; null = lista para enviar.
-export function validarEnvio(s: FichaState, plantilla: Plantilla, distanciaM: number | null, radio: number): Problema | null {
+export function validarEnvio(s: FichaState, plantilla: Plantilla, distanciaM: number | null, radio: number, zona = false): Problema | null {
   const llegoAlCliente = EXIGE_FICHA.includes(s.resultado);
   if (llegoAlCliente) {
     if (!cuestionarioBasico(s)) return { paso: "cuestionario", mensaje: "Responde las 3 preguntas obligatorias del cuestionario." };
@@ -57,7 +58,7 @@ export function validarEnvio(s: FichaState, plantilla: Plantilla, distanciaM: nu
     }
   }
   if (s.resultado === "CONFORME") {
-    const motivos = bloqueosConforme(s, plantilla, distanciaM, radio);
+    const motivos = bloqueosConforme(s, plantilla, distanciaM, radio, zona);
     if (motivos.length) return { paso: "cierre", mensaje: `No puede cerrarse como Conforme: ${motivos.join("; ")}. Elige Observado y explica el motivo.` };
   } else if (s.comentarioAuditor.trim().length < 10) {
     return { paso: "cierre", mensaje: "Este resultado requiere un comentario del auditor de al menos 10 caracteres." };
