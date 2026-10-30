@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
 import * as Location from "expo-location";
-import { jornadaEnCurso } from "./jornada";
+import { horaDelPunto, jornadaEnCurso, ultimoEnvioDeJornada } from "./jornada";
 import { estadoBateria } from "./bateria";
 
 export type AuditorLocation = {
@@ -101,11 +101,14 @@ export function useAuditorLocation(
             // La ubicación solo se comparte con el supervisor durante la jornada de campo (ver jornada.ts); fuera de ella la app
             // la usa únicamente en el propio celular (distancias, ficha, mapa).
             if (!(await jornadaEnCurso())) return;
+            // En jornada, la tarea de fondo ya manda una posición cada 15 s (con la pantalla encendida o apagada): desde aquí solo se manda si esa
+            // tarea se quedó callada, para no duplicar puntos.
+            if (Date.now() - ultimoEnvioDeJornada() < 45_000) return;
             lastSent = now;
             try {
               await apiRef.current("/api/visitas/ubicacion", {
                 method: "PATCH",
-                body: JSON.stringify({ latitud: next.latitude, longitud: next.longitude, precision: next.accuracy, simulada: next.mocked, ...(await estadoBateria()) }),
+                body: JSON.stringify({ latitud: next.latitude, longitud: next.longitude, precision: next.accuracy, simulada: next.mocked, fecha: horaDelPunto(position), ...(await estadoBateria()) }),
               });
             } catch {
               // El GPS sigue activo aunque falle temporalmente el envío.
