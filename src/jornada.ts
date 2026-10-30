@@ -18,6 +18,10 @@ const CLAVE_INICIO = "jornada_inicio_local";
 const CLAVE_FIN_PENDIENTE = "jornada_fin_pendiente"; // se terminó en el celular pero el servidor aún no lo sabe (sin señal)
 const CLAVE_ZONA = "jornada_zona"; // la zona de trabajo con la que el servidor registró el inicio (para mostrarla mientras dure la jornada)
 export const jornadaDisponible = Platform.OS === "android" || Platform.OS === "ios";
+// Hora en que el GPS tomó la posición (no la de envío): con ella el servidor ordena el recorrido aunque un punto llegue tarde por falta de señal.
+export const horaDelPunto = (p: { timestamp?: number }) => new Date(p?.timestamp || Date.now()).toISOString();
+let ultimoEnvioMs = 0; // última vez que esta tarea mandó una posición: la pantalla solo manda la suya si esta tarea se queda callada
+export const ultimoEnvioDeJornada = () => ultimoEnvioMs;
 
 // Se define al cargar el módulo (index.ts lo importa) para que Android pueda ejecutarla aunque la app esté cerrada.
 TaskManager.defineTask(JORNADA_TASK, async ({ data, error }: any) => {
@@ -36,8 +40,9 @@ TaskManager.defineTask(JORNADA_TASK, async ({ data, error }: any) => {
         method: "PATCH",
         signal: control.signal,
         headers: { Accept: "application/json", "Content-Type": "application/json", "x-client-platform": "mobile", "x-device-id": deviceId, Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ latitud: ultimo.coords.latitude, longitud: ultimo.coords.longitude, precision: ultimo.coords.accuracy, simulada: Boolean((ultimo as any).mocked), ...(await estadoBateria()) }),
+        body: JSON.stringify({ latitud: ultimo.coords.latitude, longitud: ultimo.coords.longitude, precision: ultimo.coords.accuracy, simulada: Boolean((ultimo as any).mocked), fecha: horaDelPunto(ultimo), ...(await estadoBateria()) }),
       });
+      ultimoEnvioMs = Date.now();
       // Sesión cerrada o revocada: se apaga el servicio para no seguir con la notificación sin enviar nada.
       if (respuesta.status === 401 || respuesta.status === 403) await detenerSeguimiento();
     } finally { clearTimeout(espera); }

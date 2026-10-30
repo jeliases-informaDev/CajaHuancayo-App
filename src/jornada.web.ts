@@ -5,6 +5,8 @@ import type { ZonaJornada } from "./types/jornada";
 
 export const JORNADA_TASK = "ch-jornada-ubicacion";
 export const jornadaDisponible = true;
+export const horaDelPunto = (p: { timestamp?: number }) => new Date(p?.timestamp || Date.now()).toISOString();
+export const ultimoEnvioDeJornada = () => 0; // en el navegador no hay tarea de fondo: la pantalla manda siempre
 const CLAVE_INICIO = "jornada_inicio_local";
 const CLAVE_FIN_PENDIENTE = "jornada_fin_pendiente";
 const CLAVE_ZONA = "jornada_zona";
