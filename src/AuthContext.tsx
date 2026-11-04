@@ -5,6 +5,7 @@ import { terminarJornada } from "./jornada";
 import NetInfo from "@react-native-community/netinfo";
 import { ApiError, request } from "./api";
 import { getDeviceId } from "./deviceIdentity";
+import { recordarLicencia, recordarLicenciaDe } from "./licencia";
 
 type User = { id: string; username: string; rol: "SUPERVISOR" | "AUDITOR" | "ADMINISTRADOR"; nombres?: string; apellidos?: string };
 type AuthValue = {
@@ -66,6 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearSession = async () => {
     setToken(null); setUser(null); setOfflineSession(false);
+    // La licencia es de la empresa de quien entró: no debe quedar para la siguiente cuenta que use este celular.
+    recordarLicencia(null);
     await Promise.all([secureStore.remove(TOKEN_KEY), secureStore.remove(OFFLINE_SESSION_KEY)]);
   };
 
@@ -97,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         const data: any = await request("/api/auth/me", {}, savedToken);
         ensureFieldUser(data.user);
+        recordarLicenciaDe(data); // /me trae la licencia de la empresa (null = licencias apagadas)
         await persistValidatedSession(savedToken, data.user);
         setToken(savedToken); setUser(data.user); setOfflineSession(false);
       } catch (error) {
@@ -120,6 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       request<any>("/api/auth/me", {}, token)
         .then(async (data) => {
           ensureFieldUser(data.user);
+          recordarLicenciaDe(data);
           await persistValidatedSession(token, data.user);
           setUser(data.user); setOfflineSession(false);
         })
@@ -134,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data: any = await request("/api/auth/login", {
         method: "POST", body: JSON.stringify({ username, password }), headers: { "x-device-id": deviceId },
       });
+      recordarLicenciaDe(data); // si el servidor ya adjunta la licencia al entrar, se conoce desde el primer momento
       if (!data.mfaRequired && !data.mfaEnrollmentRequired) await complete(data);
       return data;
     },
@@ -142,6 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         enroll ? "/api/auth/mfa/enroll/confirm" : "/api/auth/mfa/verify",
         { method: "POST", body: JSON.stringify({ challengeToken, code }) },
       );
+      recordarLicenciaDe(data);
       await complete(data);
     },
     logout: async () => {

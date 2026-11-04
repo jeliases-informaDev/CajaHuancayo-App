@@ -2,6 +2,8 @@
 // pide páginas de 100 hasta tener todos (con un tope de seguridad), y repite la descarga completa solo si la «huella» de la muestra cambió
 // (una consulta mínima), en vez de bajar todo cada pocos segundos. Con un servidor anterior (sin paginación) sigue funcionando: recibe todo junto.
 
+import { recordarLicenciaDe } from "./licencia";
+
 type Api = <T>(path: string, options?: RequestInit) => Promise<T>;
 
 export type ResumenMuestra = { total: number; ALTA: number; MEDIA: number; BAJA: number; CONSUMO: number; OTROS: number };
@@ -24,6 +26,7 @@ export function cargarMuestra(api: Api, opciones: Opciones = {}): Promise<Muestr
     if (previa && previa.completa && !opciones.forzar && previa.version) {
       try {
         const v: any = await api("/api/asignaciones/mias/version");
+        recordarLicenciaDe(v); // la licencia viaja con cada consulta: la franja se actualiza aunque la muestra no cambie
         if (v?.data?.version === previa.version) return previa; // nada cambió: no se descarga otra vez
       } catch { /* servidor anterior o sin señal: se intenta la descarga completa */ }
     }
@@ -31,6 +34,7 @@ export function cargarMuestra(api: Api, opciones: Opciones = {}): Promise<Muestr
     let pagina = 1; let paginas = 1; let total = 0; let resumen: ResumenMuestra | null = null; let version: string | null = null;
     do {
       const r: any = await api(`/api/asignaciones/mias?page=${pagina}&limit=${TAM_PAGINA}${opciones.ligero ? "&ligero=true" : ""}`);
+      recordarLicenciaDe(r);
       datos.push(...(r.data || []));
       if (r.pagination) { total = r.pagination.total; paginas = r.pagination.pages; resumen = r.resumen ?? resumen; version = r.version ?? version; }
       else { total = datos.length; paginas = 1; } // servidor anterior: todo vino en una sola respuesta

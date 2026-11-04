@@ -281,6 +281,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
 
       let synced = false;
       let rejectedReason: string | null = null;
+      let licenciaBloqueada: string | null = null; // la licencia de la empresa no permite registrar: la visita queda guardada (no rechazada) con el aviso del servidor
       try {
         const network = await NetInfo.fetch();
         const connected = Boolean(network.isConnected && network.isInternetReachable !== false);
@@ -288,6 +289,7 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
           const result = await syncPendingVisits();
           synced = result.syncedIds.includes(queueId);
           rejectedReason = result.rejected.find((r) => r.id === queueId)?.reason ?? null;
+          licenciaBloqueada = result.licenciaBloqueada ?? null;
         }
       } catch {}
       const alerta = ubicacionObservada ? ` Quedó con alerta de ubicación: ${ubicacionObservada}.` : "";
@@ -295,6 +297,8 @@ export default function FichaWizard({ asignacion, geo, currentLocation, onClose,
         onSent({ tono: "rechazada", titulo: "Visita rechazada por el servidor", texto: `${rejectedReason} No se registró: el expediente sigue en tu muestra, corrige lo indicado y vuelve a registrarlo. El detalle queda en Perfil.` });
       } else if (synced) {
         onSent({ tono: "ok", titulo: "Tus respuestas han sido enviadas", texto: `Puedes continuar con el resto de tus muestras.${alerta}` });
+      } else if (licenciaBloqueada) {
+        onSent({ tono: "guardada", titulo: "Visita guardada en tu celular", texto: `${licenciaBloqueada} Se enviará sola cuando la licencia vuelva a estar activa.${alerta}` });
       } else {
         onSent({ tono: "guardada", titulo: "Visita guardada en tu celular", texto: `Aún no llegó al servidor: se enviará sola cuando haya conexión. Hasta entonces el expediente NO cambia de estado.${alerta}` });
       }

@@ -57,7 +57,8 @@ type PendingRow = {
 };
 
 export type RejectedVisit = { id: string; idExpediente: number; reason: string };
-export type SyncResult = { attempted: number; synced: number; pending: number; syncedIds: string[]; rejected: RejectedVisit[] };
+// licenciaBloqueada: la licencia de GeoMatrix de la empresa no permite registrar (texto del servidor); las visitas siguen pendientes.
+export type SyncResult = { attempted: number; synced: number; pending: number; syncedIds: string[]; rejected: RejectedVisit[]; licenciaBloqueada?: string };
 
 // Un rechazo "de negocio" del servidor (geocerca, foto reusada, asignación cancelada,
 // datos inválidos...) nunca se va a arreglar reintentando: esa visita se aparta como
@@ -68,6 +69,13 @@ function isPermanentRejection(error: any) {
   if ([400, 404, 409, 413, 422].includes(status)) return true;
   return status === 403 && error?.code === "NOT_ASSIGNED";
 }
+
+// La licencia de la empresa no permite registrar (vencida, suspendida o cancelada): el servidor responde 403 con code LICENCIA_*.
+// No es culpa de la visita ni del auditor: se queda PENDIENTE y, para no insistir en vano, la cola descansa 5 minutos (salvo «Sincronizar ahora»).
+const esBloqueoLicencia = (e: any) => Number(e?.status) === 403 && String(e?.code || "").startsWith("LICENCIA_");
+const CLAVE_BLOQUEO_LICENCIA = "licencia_bloqueo_v1";
+const BLOQUEO_LICENCIA_MS = 5 * 60_000;
+type BloqueoLicencia = { texto: string; hasta: number };
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 let activeSync: Promise<SyncResult> | null = null;
@@ -137,6 +145,12 @@ export async function cacheSet(key: string, value: unknown) {
   }
 }
 
+// Texto del bloqueo de licencia aún vigente (los últimos 5 minutos) o null. Lo muestran la pantalla Hoy y la propia cola.
+export async function bloqueoLicenciaVigente(): Promise<string | null> {
+  const bloqueo = await cacheGet<BloqueoLicencia>(CLAVE_BLOQUEO_LICENCIA);
+  return bloqueo?.value && Number(bloqueo.value.hasta) > Date.now() ? String(bloqueo.value.texto) : null;
+}
+
 async function requestJson(path: string, options: RequestInit, token: string, deviceId: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -194,7 +208,7 @@ async function evidenceKey(photoUri: string, idExpediente: number, tipo: "FOTO_P
 
 async function payloadPath(id: string) { return `${PAYLOAD_DIR}/${id}.json`; }
 
-async function synchronize(tokenOverride?: string | null): Promise<SyncResult> {
+async function synchronize(tokenOverride?: string | null, forzar = false): Promise<SyncResult> {
   const db = await database();
   const token = tokenOverride
     || (Platform.OS === "web" ? globalThis.localStorage?.getItem(TOKEN_KEY) : await SecureStore.getItemAsync(TOKEN_KEY));
@@ -206,6 +220,11 @@ async function synchronize(tokenOverride?: string | null): Promise<SyncResult> {
   const items = await db.getAllAsync<PendingRow>("SELECT * FROM pending_visits WHERE status = 'PENDING' ORDER BY created_at ASC");
   const result: SyncResult = { attempted: 0, synced: 0, pending: items.length, syncedIds: [], rejected: [] };
   if (!items.length) return result;
+  // Bloqueo de licencia reciente: el servidor va a responder lo mismo, así que no se insiste salvo que el auditor toque «Sincronizar ahora».
+  if (!forzar) {
+    const bloqueo = await bloqueoLicenciaVigente();
+    if (bloqueo) { result.licenciaBloqueada = bloqueo; return result; }
+  }
 
   for (const item of items) {
     result.attempted += 1;
@@ -270,6 +289,14 @@ async function synchronize(tokenOverride?: string | null): Promise<SyncResult> {
       result.pending -= 1;
       result.syncedIds.push(item.id);
     } catch (error: any) {
+      if (esBloqueoLicencia(error)) {
+        // La visita sigue PENDIENTE con el aviso del servidor como motivo; la cola descansa 5 minutos y conserva el orden.
+        const texto = String(error?.message || "La licencia de GeoMatrix de tu empresa no permite registrar visitas por ahora.").slice(0, 500);
+        await db.runAsync("UPDATE pending_visits SET attempts = attempts + 1, last_error = ?, updated_at = ? WHERE id = ?", texto, Date.now(), item.id);
+        await cacheSet(CLAVE_BLOQUEO_LICENCIA, { texto, hasta: Date.now() + BLOQUEO_LICENCIA_MS });
+        result.licenciaBloqueada = texto;
+        break;
+      }
       if (isPermanentRejection(error)) {
         // Rechazo definitivo del servidor: se aparta esta visita (queda en el celular
         // con su motivo, visible en "Mi perfil") y se sigue con las demás.
@@ -288,6 +315,8 @@ async function synchronize(tokenOverride?: string | null): Promise<SyncResult> {
       break;
     }
   }
+  // Si alguna visita entró, la licencia volvió a estar activa: se levanta el descanso guardado.
+  if (result.synced && !result.licenciaBloqueada) await cacheSet(CLAVE_BLOQUEO_LICENCIA, null);
   return result;
 }
 
@@ -338,10 +367,11 @@ export async function enqueueVisit(input: QueuedVisitInput) {
   return input.id;
 }
 
-export async function syncPendingVisits(token?: string | null) {
-  if (!activeSync) {
-    activeSync = synchronize(token).finally(() => { activeSync = null; });
-  }
+// forzar: «Sincronizar ahora» intenta de verdad aunque la cola esté descansando por un bloqueo de licencia reciente. Si ya hay una sincronización en curso,
+// forzar espera a que termine y lanza otra (cuando corre la encadenada, activeSync ya volvió a null: no se encadena sola); sin forzar se devuelve la que corre.
+export async function syncPendingVisits(token?: string | null, opciones: { forzar?: boolean } = {}): Promise<SyncResult> {
+  if (activeSync) return opciones.forzar ? activeSync.then(() => syncPendingVisits(token, opciones)) : activeSync;
+  activeSync = synchronize(token, Boolean(opciones.forzar)).finally(() => { activeSync = null; });
   return activeSync;
 }
 

@@ -10,6 +10,7 @@ import AvisoEnvio from "../ficha/AvisoEnvio";
 import { cacheGet, cacheSet } from "../offlineSync";
 import { cargarMuestra, type ResumenMuestra } from "../muestra";
 import { recordarEmpresa } from "../empresa";
+import { licenciaBloqueaEscrituras, recordarLicenciaDe, useLicencia } from "../licencia";
 
 function distanciaMetros(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371000;
@@ -26,6 +27,9 @@ const GEO_DEFAULT = { radio: 100, precision: 100, zonaRadio: 1000 };
 
 export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilityChange, currentLocation, abrirAsignacion = null }: { refreshRevision?: number; onDetailVisibilityChange?: (open: boolean) => void; currentLocation?: { latitude: number; longitude: number } | null; abrirAsignacion?: any }) {
   const { api } = useAuth();
+  // Con la licencia vencida, suspendida o cancelada el servidor no deja tomar casos: el botón se apaga y la nota lo explica.
+  const licencia = useLicencia();
+  const sinLicencia = licenciaBloqueaEscrituras(licencia);
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -126,6 +130,7 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
         const next = { radio: Number(r.data?.geocerca_radio_m) || GEO_DEFAULT.radio, precision: Number(r.data?.precision_maxima_m) || GEO_DEFAULT.precision, zonaRadio: Number(r.data?.zona_radio_m) || GEO_DEFAULT.zonaRadio };
         if (mounted.current) setGeoConfig(next);
         if (r.data?.empresa) recordarEmpresa(r.data.empresa);
+        recordarLicenciaDe(r); // la configuración también trae la licencia de la empresa
         cacheSet(CACHE_KEY_GEO, next);
         const permitida = r.data?.autoasignacion !== false; // apps/servidores anteriores no lo informan: sigue activa
         autoasignacionFresca.current = true;
@@ -266,14 +271,14 @@ export default function MiMuestraScreen({ refreshRevision = 0, onDetailVisibilit
 
         {vista === "disponibles" ? (
           <>
-            <Text style={s.nota}>Casos pendientes que ningún asesor ha tomado, de cualquier distrito: toma los que quieras. Al tomar uno, pasa a tu muestra.{tope && tope.maximo > 0 ? ` Tienes ${tope.abiertos} de ${tope.maximo} casos abiertos${tope.cupo === 0 ? ": llegaste al máximo, termina o pide que te quiten alguno para tomar otro." : "."}` : ""}</Text>
+            <Text style={s.nota}>Casos pendientes que ningún asesor ha tomado, de cualquier distrito: toma los que quieras. Al tomar uno, pasa a tu muestra.{tope && tope.maximo > 0 ? ` Tienes ${tope.abiertos} de ${tope.maximo} casos abiertos${tope.cupo === 0 ? ": llegaste al máximo, termina o pide que te quiten alguno para tomar otro." : "."}` : ""}{sinLicencia ? " Tu licencia no permite tomar casos por ahora." : ""}</Text>
             {errorDisponibles && !disponibles.length ? <Empty title="No pudimos cargar la lista" text={errorDisponibles} /> : null}
             {!errorDisponibles && !loadingDisponibles && !visiblesDisp.length ? <Empty title="Nada para mostrar" text={disponibles.length ? "Ningún caso coincide con la búsqueda o el filtro." : "No hay casos pendientes sin tomar."} /> : null}
             {visiblesDisp.map((exp) => {
               const claiming = claimingId === exp.id_expediente;
               return (
                 <Tarjeta key={exp.id_expediente} exp={exp}>
-                  <Pressable onPress={() => tomarCaso(exp.id_expediente)} disabled={claiming || tope?.cupo === 0} accessibilityRole="button" style={[s.tomar, (claiming || tope?.cupo === 0) && { opacity: 0.6 }]}>
+                  <Pressable onPress={() => tomarCaso(exp.id_expediente)} disabled={claiming || tope?.cupo === 0 || sinLicencia} accessibilityRole="button" style={[s.tomar, (claiming || tope?.cupo === 0 || sinLicencia) && { opacity: 0.6 }]}>
                     <MaterialCommunityIcons name={claiming ? "timer-sand" : "hand-extended-outline"} size={18} color="#fff" />
                     <Text style={s.tomarTexto}>{claiming ? "Tomando…" : "Tomar este caso"}</Text>
                   </Pressable>

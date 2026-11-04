@@ -27,6 +27,7 @@ import MiMuestraScreen from "./src/screens/MiMuestraScreen";
 import MoreScreen from "./src/screens/MoreScreen";
 import { useFieldRealtime } from "./src/useFieldRealtime";
 import { useAuditorLocation } from "./src/useAuditorLocation";
+import { franjaDeLicencia, useLicencia } from "./src/licencia";
 import {
   cacheGet,
   cacheSet,
@@ -52,8 +53,18 @@ const tabs: any[] = [
     active: "account-circle",
   },
 ];
+// Colores de la franja de licencia: vencida = ámbar (como el aviso de ubicación), suspendida o cancelada = rojo, por vencer = ámbar discreto.
+const LICENCIA_TONOS = {
+  ambar: { fondo: C.warning, color: "#fff", icono: "clock-alert-outline" },
+  rojo: { fondo: C.danger, color: "#fff", icono: "alert-octagon-outline" },
+  suave: { fondo: N.ambarFondo, color: N.ambar, icono: "calendar-clock" },
+} as const;
 function Shell() {
   const { token, user, loading, api, offlineSession } = useAuth();
+  const licencia = useLicencia();
+  // Franja de licencia: lo que diga el servidor (vencida = ámbar, suspendida = rojo, por vencer = aviso discreto); sin información no se muestra nada.
+  const franjaLicencia = franjaDeLicencia(licencia);
+  const tonoLicencia = franjaLicencia ? LICENCIA_TONOS[franjaLicencia.tono] : null;
   const [fontsLoaded, fontsError] = useFonts({ BeVietnamPro_300Light, BeVietnamPro_400Regular, BeVietnamPro_500Medium, BeVietnamPro_600SemiBold, Beiruti_300Light, Beiruti_400Regular, Beiruti_600SemiBold });
   const [tab, setTab] = useState<Tab>("principal");
   // Al abrir la app sin sesión se ve primero la Bienvenida; «Entrar» lleva al inicio de sesión. Al cerrar sesión vuelve a empezar por ahí.
@@ -129,6 +140,8 @@ function Shell() {
     mapa: MapScreen,
     mas: MoreScreen,
   }[tab];
+  // Las franjas de arriba se apilan: solo la primera lleva el margen del notch (insets.top); la de licencia, si va debajo de otra, usa el relleno normal.
+  const hayFranjaArriba = offlineSession || (!online && !offlineSession) || Boolean(online && locationError);
   return (
     <View style={s.shell}>
       {offlineSession ? (
@@ -160,6 +173,12 @@ function Shell() {
           <Text style={s.offlineText}>{locationError}</Text>
           <MaterialCommunityIcons name="chevron-right" size={18} color="#fff" />
         </Pressable>
+      ) : null}
+      {franjaLicencia && tonoLicencia ? (
+        <View accessibilityRole="alert" style={[s.offline, { backgroundColor: tonoLicencia.fondo, paddingTop: hayFranjaArriba ? 8 : Math.max(insets.top, 8) }]}>
+          <MaterialCommunityIcons name={tonoLicencia.icono} size={16} color={tonoLicencia.color} />
+          <Text style={[s.offlineText, s.licenciaTexto, { color: tonoLicencia.color }]}>{franjaLicencia.texto}</Text>
+        </View>
       ) : null}
       <View style={s.screen}>
         <ScreenComponent
@@ -227,6 +246,8 @@ const s = StyleSheet.create({
   locationWarning: { backgroundColor: C.warning, paddingBottom: 7, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 7 },
   locationWarningPressed: { opacity: 0.82 },
   offlineText: { fontFamily: FI.semi, color: "#fff", fontSize: 11.5 },
+  // El texto de licencia es más largo que los otros avisos: puede partirse en dos líneas sin salirse de la franja.
+  licenciaTexto: { flexShrink: 1, textAlign: "center" },
   nav: { backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border, flexDirection: "row", paddingTop: 6, shadowColor: "#0E1332", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -3 }, elevation: 8 },
   navItem: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 2, paddingTop: 2, paddingBottom: 4 },
   navItemPressed: { opacity: 0.6 },
