@@ -17,7 +17,8 @@ export type QueuedVisitInput = {
   firma: string; firmaAuditor?: string; fichaVersion?: number; photo1Uri: string; photo2Uri: string; latitude: number; longitude: number; precisionMeters: number | null; mockLocation: boolean; deviceIntegrityOk: boolean;
 };
 export type RejectedVisit = { id: string; idExpediente: number; reason: string };
-export type SyncResult = { attempted: number; synced: number; pending: number; syncedIds: string[]; rejected: RejectedVisit[] };
+// licenciaBloqueada: la licencia de la empresa no permite registrar (texto del servidor); las visitas siguen pendientes.
+export type SyncResult = { attempted: number; synced: number; pending: number; syncedIds: string[]; rejected: RejectedVisit[]; licenciaBloqueada?: string };
 type Fila = { id: string; idExpediente: number; idAsignacion: number | null; photo1Uri: string; photo2Uri: string; photo1Key: string | null; photo2Key: string | null; status: "PENDING" | "REJECTED"; lastError: string | null; cifrado: string; updatedAt: number };
 
 const leer = (): Fila[] => { try { return JSON.parse(localStorage.getItem(COLA) || "[]"); } catch { return []; } };
@@ -52,15 +53,28 @@ async function claveEvidencia(uri: string, idExpediente: number, tipo: "FOTO_PRI
 
 // Un rechazo "de negocio" del servidor no se arregla reintentando; lo transitorio sí (misma regla que offlineSync.ts).
 const esRechazoDefinitivo = (e: any) => [400, 404, 409, 413, 422].includes(Number(e?.status)) || (Number(e?.status) === 403 && e?.code === "NOT_ASSIGNED");
+// La licencia de la empresa no permite registrar: 403 con code LICENCIA_* (misma regla que offlineSync.ts): la visita sigue PENDIENTE y la cola descansa 5 minutos.
+const esBloqueoLicencia = (e: any) => Number(e?.status) === 403 && String(e?.code || "").startsWith("LICENCIA_");
+const CLAVE_BLOQUEO_LICENCIA = "licencia_bloqueo_v1";
+const BLOQUEO_LICENCIA_MS = 5 * 60_000;
+export async function bloqueoLicenciaVigente(): Promise<string | null> {
+  const bloqueo = await cacheGet<{ texto: string; hasta: number }>(CLAVE_BLOQUEO_LICENCIA);
+  return bloqueo?.value && Number(bloqueo.value.hasta) > Date.now() ? String(bloqueo.value.texto) : null;
+}
 
 let activa: Promise<SyncResult> | null = null;
-async function sincronizar(tokenOverride?: string | null): Promise<SyncResult> {
+async function sincronizar(tokenOverride?: string | null, forzar = false): Promise<SyncResult> {
   const token = tokenOverride || localStorage.getItem("ch_token");
   const deviceId = await getDeviceId();
   const filas = leer();
   const pendientes = filas.filter((f) => f.status === "PENDING");
   const result: SyncResult = { attempted: 0, synced: 0, pending: pendientes.length, syncedIds: [], rejected: [] };
   if (!token || !pendientes.length) return result;
+  // Bloqueo de licencia reciente: no se insiste salvo que el auditor toque «Sincronizar ahora».
+  if (!forzar) {
+    const bloqueo = await bloqueoLicenciaVigente();
+    if (bloqueo) { result.licenciaBloqueada = bloqueo; return result; }
+  }
   const cambiar = (id: string, parche: Partial<Fila>) => guardar(leer().map((f) => (f.id === id ? { ...f, ...parche, updatedAt: Date.now() } : f)));
   for (const item of pendientes) {
     result.attempted += 1;
@@ -86,6 +100,13 @@ async function sincronizar(tokenOverride?: string | null): Promise<SyncResult> {
       guardar(leer().filter((f) => f.id !== item.id));
       result.synced += 1; result.pending -= 1; result.syncedIds.push(item.id);
     } catch (error: any) {
+      if (esBloqueoLicencia(error)) {
+        const texto = String(error?.message || "La licencia de GeoMatrix de tu empresa no permite registrar visitas por ahora.").slice(0, 500);
+        cambiar(item.id, { lastError: texto });
+        await cacheSet(CLAVE_BLOQUEO_LICENCIA, { texto, hasta: Date.now() + BLOQUEO_LICENCIA_MS });
+        result.licenciaBloqueada = texto;
+        break;
+      }
       if (esRechazoDefinitivo(error)) {
         const reason = String(error?.message || "Rechazada por el servidor").slice(0, 500);
         cambiar(item.id, { status: "REJECTED", lastError: reason });
@@ -96,6 +117,8 @@ async function sincronizar(tokenOverride?: string | null): Promise<SyncResult> {
       break;
     }
   }
+  // Si alguna visita entró, la licencia volvió a estar activa: se levanta el descanso guardado.
+  if (result.synced && !result.licenciaBloqueada) await cacheSet(CLAVE_BLOQUEO_LICENCIA, null);
   return result;
 }
 
@@ -108,8 +131,10 @@ export async function enqueueVisit(input: QueuedVisitInput) {
   guardar([...leer().filter((f) => f.id !== id), { id, idExpediente, idAsignacion, photo1Uri, photo2Uri, photo1Key: null, photo2Key: null, status: "PENDING", lastError: null, cifrado, updatedAt: Date.now() }]);
   return id;
 }
-export async function syncPendingVisits(token?: string | null) {
-  if (!activa) activa = sincronizar(token).finally(() => { activa = null; });
+// Con una sincronización en curso, forzar espera a que termine y lanza otra (misma regla que offlineSync.ts); sin forzar se devuelve la que corre.
+export async function syncPendingVisits(token?: string | null, opciones: { forzar?: boolean } = {}): Promise<SyncResult> {
+  if (activa) return opciones.forzar ? activa.then(() => syncPendingVisits(token, opciones)) : activa;
+  activa = sincronizar(token, Boolean(opciones.forzar)).finally(() => { activa = null; });
   return activa;
 }
 export async function pendingVisitCount() { return leer().filter((f) => f.status === "PENDING").length; }

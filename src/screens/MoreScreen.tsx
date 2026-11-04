@@ -63,7 +63,7 @@ export default function MoreScreen() {
     if (syncing) return;
     try {
       setSyncing(true);
-      const result = await syncPendingVisits(token);
+      const result = await syncPendingVisits(token, { forzar: true }); // «Sincronizar ahora» intenta de verdad aunque la cola descanse por un bloqueo de licencia
       setPending(result.pending);
       const reason = await lastSyncError();
       setSyncError(reason);
@@ -75,7 +75,9 @@ export default function MoreScreen() {
       Alert.alert(
         result.pending ? "Sincronización pendiente" : (result.synced ? "Visitas enviadas" : "Sin visitas por enviar"),
         (result.pending
-          ? (reason ? `No se pudo enviar: ${reason}` : `${result.pending} visita(s) siguen seguras en el dispositivo y se reintentarán automáticamente.`)
+          ? (result.licenciaBloqueada
+            ? `${result.licenciaBloqueada} ${result.pending} visita(s) siguen seguras en el celular y se enviarán solas cuando la licencia vuelva a estar activa.`
+            : reason ? `No se pudo enviar: ${reason}` : `${result.pending} visita(s) siguen seguras en el dispositivo y se reintentarán automáticamente.`)
           : "No quedan visitas pendientes de envío.") + rechazadas,
       );
     } finally {
@@ -134,7 +136,7 @@ export default function MoreScreen() {
       {pending && syncError ? (
         <View style={s.error}>
           <MaterialCommunityIcons name="alert-circle-outline" size={16} color={N.rojoTexto} />
-          <Text style={s.errorTexto} numberOfLines={2}>{syncError}</Text>
+          <Text style={s.errorTexto}>{syncError}</Text>
         </View>
       ) : null}
       <Pressable onPress={syncNow} disabled={syncing} accessibilityRole="button" accessibilityLabel="Sincronización operativa: sincronizar ahora" style={({ pressed }) => [s.boton, (pressed || syncing) && { opacity: 0.7 }]}>

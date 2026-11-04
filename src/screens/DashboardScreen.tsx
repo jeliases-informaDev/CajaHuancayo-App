@@ -7,10 +7,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../AuthContext";
 import { Empty, Loading } from "../ui";
 import { conMayusculas, FI, N, nombreDePersona } from "../theme";
-import { cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
+import { bloqueoLicenciaVigente, cacheGet, cacheSet, pendingVisitCount, rejectedVisits } from "../offlineSync";
 import { cargarMuestra, type ResumenMuestra } from "../muestra";
 import { comoLlegarA } from "../ficha/destino";
 import { inicioDeJornada, iniciarJornada, jornadaDisponible, jornadaEnCurso, reintentarFinPendiente, terminarJornada, zonaDeLaJornada } from "../jornada";
+import { licenciaBloqueaEscrituras, useLicencia } from "../licencia";
 import type { ZonaJornada } from "../types/jornada";
 
 const CACHE_KEY_MUESTRA = "mias_v1";
@@ -28,11 +29,15 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
 }) {
   const { api, user } = useAuth();
   const insets = useSafeAreaInsets();
+  // Con la licencia vencida, suspendida o cancelada el servidor rechaza iniciar la jornada: el botón se apaga con una nota (terminarla sí se permite).
+  const licencia = useLicencia();
+  const sinLicencia = licenciaBloqueaEscrituras(licencia);
   const [asignaciones, setAsignaciones] = useState<any[]>([]);
   const [resumen, setResumen] = useState<ResumenMuestra | null>(null); // conteos de TODA la muestra, vengan o no cargados todos los casos
   const ultimaGuardada = useRef<any[] | null>(null);
   const [pendientesSync, setPendientesSync] = useState(0);
   const [rechazadas, setRechazadas] = useState(0);
+  const [bloqueoLicencia, setBloqueoLicencia] = useState<string | null>(null); // aviso del servidor si la cola está detenida por la licencia (ver offlineSync)
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -72,6 +77,9 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
       .catch(() => {});
     rejectedVisits()
       .then((list) => { if (mounted.current && current === requestId.current) setRechazadas(list.length); })
+      .catch(() => {});
+    bloqueoLicenciaVigente()
+      .then((texto) => { if (mounted.current && current === requestId.current) setBloqueoLicencia(texto); })
       .catch(() => {});
     try {
       const m = await cargarMuestra(api, { forzar });
@@ -133,6 +141,7 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
     { n: pendientesSync, sub: "Listas para enviar", color: pendientesSync ? N.verde : N.tinta },
   ];
   const desde = jornada.desde ? new Date(jornada.desde).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }) : "";
+  const iniciarBloqueado = sinLicencia && !jornada.activa; // solo se apaga «Iniciar jornada»; «Terminar jornada» siempre funciona
 
   return (
     <View style={s.pantalla}>
@@ -168,7 +177,8 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
               <Text style={s.notaTexto}>Tu supervisor verá tu ubicación solo durante la jornada, incluso con la pantalla apagada.</Text>
             </View>
             {jornadaError ? <Text style={s.jornadaError}>{jornadaError}</Text> : null}
-            <Pressable disabled={jornadaOcupada} onPress={alternarJornada} accessibilityRole="button" style={({ pressed }) => [s.jornadaBtn, jornada.activa ? s.jornadaBtnOff : s.jornadaBtnOn, (pressed || jornadaOcupada) && { opacity: 0.75 }]}>
+            {iniciarBloqueado ? <Text style={s.licenciaNota}>Tu licencia no permite iniciar jornadas por ahora.</Text> : null}
+            <Pressable disabled={jornadaOcupada || iniciarBloqueado} onPress={alternarJornada} accessibilityRole="button" accessibilityState={{ disabled: jornadaOcupada || iniciarBloqueado }} style={({ pressed }) => [s.jornadaBtn, jornada.activa ? s.jornadaBtnOff : s.jornadaBtnOn, (pressed || jornadaOcupada || iniciarBloqueado) && { opacity: 0.75 }]}>
               <MaterialCommunityIcons name={jornada.activa ? "stop-circle-outline" : "play-outline"} size={21} color={jornada.activa ? "#C0243E" : "#fff"} />
               <Text style={[s.jornadaBtnTexto, jornada.activa && { color: "#C0243E" }]}>{jornadaOcupada ? "Un momento…" : jornada.activa ? "Terminar jornada" : "Iniciar jornada"}</Text>
             </Pressable>
@@ -238,7 +248,7 @@ export default function DashboardScreen({ refreshRevision = 0, onNavigate, curre
             <MaterialCommunityIcons name={rechazadas ? "alert-octagon-outline" : "cloud-alert-outline"} size={26} color={rechazadas ? "#C0243E" : N.ambar} />
             <View style={{ flex: 1 }}>
               <Text style={s.avisoTitulo}>{rechazadas ? `${rechazadas} visita(s) rechazada(s)` : `${pendientesSync} visita(s) por sincronizar`}</Text>
-              <Text style={s.avisoTexto}>{rechazadas ? "No se enviaron. Abre Perfil para ver el motivo; el expediente sigue en tu muestra." : "Se enviarán automáticamente al recuperar conexión."}</Text>
+              <Text style={s.avisoTexto}>{rechazadas ? "No se enviaron. Abre Perfil para ver el motivo; el expediente sigue en tu muestra." : bloqueoLicencia ? `${bloqueoLicencia} Se enviarán solas cuando la licencia vuelva a estar activa.` : "Se enviarán automáticamente al recuperar conexión."}</Text>
             </View>
           </View>
         ) : null}
@@ -267,6 +277,7 @@ const s = StyleSheet.create({
   nota: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   notaTexto: { flex: 1, fontFamily: FI.reg, fontSize: 13.5, lineHeight: 20, color: N.apagado },
   jornadaError: { fontFamily: FI.reg, color: "#C0243E", fontSize: 12.5, lineHeight: 17 },
+  licenciaNota: { fontFamily: FI.reg, color: N.ambar, fontSize: 12.5, lineHeight: 17 },
   jornadaBtn: { minHeight: 52, borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   jornadaBtnOn: { backgroundColor: N.verde },
   jornadaBtnOff: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#F5C6CC" },
